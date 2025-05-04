@@ -1,5 +1,6 @@
 ﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Identity;
 using dotenv.net;
 
 Console.WriteLine("Azure Blob Storage exercise\n");
