@@ -17,11 +17,12 @@ Console.ReadLine();
 async Task ProcessAsync()
 {
 
+    Console.Clear();
     Console.WriteLine("Azure Blob Storage exercise\n");
 
     // CREATE A BLOB STORAGE CLIENT
     
-    // Creates a client that authenticates with DefaultAzureCredential
+    // Create a client that authenticates with DefaultAzureCredential
     BlobServiceClient blobServiceClient = 
         new BlobServiceClient(new Uri(envVars["BLOB_STORAGE_URL"]), new DefaultAzureCredential());
 
@@ -50,19 +51,22 @@ async Task ProcessAsync()
     // CREATE A LOCAL FILE FOR UPLOAD TO BLOB STORAGE
     
     // Create a local file in the ./data/ directory for uploading and downloading
+    Console.WriteLine("Creating a local file for upload to Blob storage...");
     string localPath = "./data/";
     string fileName = "wtfile" + Guid.NewGuid().ToString() + ".txt";
     string localFilePath = Path.Combine(localPath, fileName);
 
     // Write text to the file
     await File.WriteAllTextAsync(localFilePath, "Hello, World!");
+    Console.WriteLine("Local file created, press 'Enter' to continue.");
+    Console.ReadLine();
 
     // UPLOAD THE FILE TO BLOB STORAGE
     
     // Get a reference to the blob and upload the file
     BlobClient blobClient = containerClient.GetBlobClient(fileName);
 
-    Console.WriteLine("Uploading to Blob storage as blob:\n\t {0}\n", blobClient.Uri);
+    Console.WriteLine("Uploading to Blob storage as blob:\n\t {0}", blobClient.Uri);
 
     // Open the file and upload its data
     using (FileStream uploadFileStream = File.OpenRead(localFilePath))
@@ -87,7 +91,7 @@ async Task ProcessAsync()
     // LIST THE CONTAINER'S BLOBS
 
     // List blobs in the container
-    Console.WriteLine("Listing blobs...");
+    Console.WriteLine("Listing blobs in container...");
     await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
     {
         Console.WriteLine("\t" + blobItem.Name);
@@ -103,7 +107,7 @@ async Task ProcessAsync()
 
     string downloadFilePath = localFilePath.Replace(".txt", "DOWNLOADED.txt");
 
-    Console.WriteLine("\nDownloading blob to\n\t{0}\n", downloadFilePath);
+    Console.WriteLine("Downloading blob to: {0}", downloadFilePath);
 
     // Download the blob's contents and save it to a file
     BlobDownloadInfo download = await blobClient.DownloadAsync();
@@ -113,16 +117,18 @@ async Task ProcessAsync()
         await download.Content.CopyToAsync(downloadFileStream);
     }
     
-    Console.WriteLine("\nLocate the local file in the data directory created earlier \n" +
-    "to verify it was downloaded.");
+    Console.WriteLine("Locate the local file in the 'data' directory created earlier to verify it was downloaded.");
     Console.WriteLine("Press 'Enter' to continue.");
     Console.ReadLine();
 
     // DELETE THE BLOB AND CONTAINER
 
     // Delete the container and the local files
-    Console.WriteLine("\n\nDeleting blob container...");
+    Console.WriteLine("Delete container and local files. Press 'Enter' to continue.");
+    Console.ReadLine();
+    
     await containerClient.DeleteAsync();
+    Console.WriteLine("Container deleted successfully.");
 
     Console.WriteLine("Deleting the local source and downloaded files...");
     File.Delete(localFilePath);
