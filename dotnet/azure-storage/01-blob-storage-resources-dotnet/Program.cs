@@ -3,12 +3,10 @@ using Azure.Storage.Blobs.Models;
 using Azure.Identity;
 using dotenv.net;
 
-Console.WriteLine("Azure Blob Storage exercise\n");
 
 // Load environment variables from .env file and assign
 DotEnv.Load();
 var envVars = DotEnv.Read();
-string storageConnectionString = envVars["AZURE_STORAGE_CONNECTION_STRING"];
 
 // Run the examples asynchronously, wait for the results before proceeding
 ProcessAsync().GetAwaiter().GetResult();
@@ -18,35 +16,57 @@ Console.ReadLine();
 
 async Task ProcessAsync()
 {
-    // Create a client that can authenticate with a connection string
-    BlobServiceClient blobServiceClient = new BlobServiceClient(storageConnectionString);
 
-    // COPY EXAMPLE CODE BELOW HERE
+    Console.Clear();
+    Console.WriteLine("Azure Blob Storage exercise\n");
+
+    // CREATE A BLOB STORAGE CLIENT
+    
+    // Create a client that authenticates with DefaultAzureCredential
+    BlobServiceClient blobServiceClient = 
+        new BlobServiceClient(new Uri(envVars["BLOB_STORAGE_URL"]), new DefaultAzureCredential());
+
+    // CREATE A CONTAINER
 
     //Create a unique name for the container
     string containerName = "wtblob" + Guid.NewGuid().ToString();
 
     // Create the container and return a container client object
-    BlobContainerClient containerClient = await blobServiceClient.CreateBlobContainerAsync(containerName);
-    Console.Clear();
-    Console.WriteLine("A container named '" + containerName + "' has been created. " +
-        "\nTake a minute and verify in the portal." +
-        "\nNext a file will be created and uploaded to the container.");
-    Console.WriteLine("Press 'Enter' to continue.");
-    Console.ReadLine();
+    Console.WriteLine("Creating container: " + containerName);
+    BlobContainerClient containerClient = 
+        await blobServiceClient.CreateBlobContainerAsync(containerName);
+    
+    // Check if the container was created successfully
+    if (containerClient != null)
+    {
+        Console.WriteLine("Container created successfully, press 'Enter' to continue.");
+        Console.ReadLine();
+    }
+    else
+    {
+        Console.WriteLine("Failed to create the container, exiting program.");
+        return;
+    }
 
+    // CREATE A LOCAL FILE FOR UPLOAD TO BLOB STORAGE
+    
     // Create a local file in the ./data/ directory for uploading and downloading
+    Console.WriteLine("Creating a local file for upload to Blob storage...");
     string localPath = "./data/";
     string fileName = "wtfile" + Guid.NewGuid().ToString() + ".txt";
     string localFilePath = Path.Combine(localPath, fileName);
 
     // Write text to the file
     await File.WriteAllTextAsync(localFilePath, "Hello, World!");
+    Console.WriteLine("Local file created, press 'Enter' to continue.");
+    Console.ReadLine();
 
-    // Get a reference to the blob
+    // UPLOAD THE FILE TO BLOB STORAGE
+    
+    // Get a reference to the blob and upload the file
     BlobClient blobClient = containerClient.GetBlobClient(fileName);
 
-    Console.WriteLine("Uploading to Blob storage as blob:\n\t {0}\n", blobClient.Uri);
+    Console.WriteLine("Uploading to Blob storage as blob:\n\t {0}", blobClient.Uri);
 
     // Open the file and upload its data
     using (FileStream uploadFileStream = File.OpenRead(localFilePath))
@@ -55,29 +75,39 @@ async Task ProcessAsync()
         uploadFileStream.Close();
     }
 
-    Console.WriteLine("\nThe file was uploaded. We'll verify by listing" +
-            " the blobs next.");
-    Console.WriteLine("Press 'Enter' to continue.");
-    Console.ReadLine();
+    // Verify if the file was uploaded successfully
+    bool blobExists = await blobClient.ExistsAsync();
+    if (blobExists)
+    {
+        Console.WriteLine("File uploaded successfully, press 'Enter' to continue.");
+        Console.ReadLine();
+    }
+    else
+    {
+        Console.WriteLine("File upload failed, exiting program..");
+        return;
+    }
+
+    // LIST THE CONTAINER'S BLOBS
 
     // List blobs in the container
-    Console.WriteLine("Listing blobs...");
+    Console.WriteLine("Listing blobs in container...");
     await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
     {
         Console.WriteLine("\t" + blobItem.Name);
     }
 
-    Console.WriteLine("\nYou can also verify by looking inside the " +
-            "container in the portal." +
-            "\nNext the blob will be downloaded with an altered file name.");
     Console.WriteLine("Press 'Enter' to continue.");
     Console.ReadLine();
 
-    // Download the blob to a local file
-    // Append the string "DOWNLOADED" before the .txt extension 
+    // DOWNLOAD THE BLOB TO A LOCAL FILE
+    
+    // Add the string "DOWNLOADED" before the .txt extension so it doesn't 
+    // overwrite the original file
+
     string downloadFilePath = localFilePath.Replace(".txt", "DOWNLOADED.txt");
 
-    Console.WriteLine("\nDownloading blob to\n\t{0}\n", downloadFilePath);
+    Console.WriteLine("Downloading blob to: {0}", downloadFilePath);
 
     // Download the blob's contents and save it to a file
     BlobDownloadInfo download = await blobClient.DownloadAsync();
@@ -86,14 +116,19 @@ async Task ProcessAsync()
     {
         await download.Content.CopyToAsync(downloadFileStream);
     }
-    Console.WriteLine("\nLocate the local file in the data directory created earlier to verify it was downloaded.");
-    Console.WriteLine("The next step is to delete the container and local files.");
+    
+    Console.WriteLine("Locate the local file in the 'data' directory created earlier to verify it was downloaded.");
     Console.WriteLine("Press 'Enter' to continue.");
     Console.ReadLine();
 
-    // Delete the container and clean up local files created
-    Console.WriteLine("\n\nDeleting blob container...");
+    // DELETE THE BLOB AND CONTAINER
+
+    // Delete the container and the local files
+    Console.WriteLine("Delete container and local files. Press 'Enter' to continue.");
+    Console.ReadLine();
+    
     await containerClient.DeleteAsync();
+    Console.WriteLine("Container deleted successfully.");
 
     Console.WriteLine("Deleting the local source and downloaded files...");
     File.Delete(localFilePath);
