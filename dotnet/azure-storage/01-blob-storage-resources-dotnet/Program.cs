@@ -22,7 +22,8 @@ async Task ProcessAsync()
     // CREATE A BLOB STORAGE CLIENT
     
     // Creates a client that authenticates with DefaultAzureCredential
-    BlobServiceClient blobServiceClient = new BlobServiceClient(new Uri(envVars["BLOB_STORAGE_URL"]), new DefaultAzureCredential());
+    BlobServiceClient blobServiceClient = 
+        new BlobServiceClient(new Uri(envVars["BLOB_STORAGE_URL"]), new DefaultAzureCredential());
 
     // CREATE A CONTAINER
 
@@ -31,7 +32,8 @@ async Task ProcessAsync()
 
     // Create the container and return a container client object
     Console.WriteLine("Creating container: " + containerName);
-    BlobContainerClient containerClient = await blobServiceClient.CreateBlobContainerAsync(containerName);
+    BlobContainerClient containerClient = 
+        await blobServiceClient.CreateBlobContainerAsync(containerName);
     
     // Check if the container was created successfully
     if (containerClient != null)
