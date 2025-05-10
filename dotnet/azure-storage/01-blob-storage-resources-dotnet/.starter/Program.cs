@@ -1,7 +1,6 @@
 ﻿using Azure.Storage;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using Azure.Identity;
 using dotenv.net;
 
 
@@ -34,7 +33,7 @@ async Task ProcessAsync()
     
 
 
-    // LIST THE CONTAINER'S BLOBS
+    // LIST BLOBS IN THE CONTAINER
 
 
     // DOWNLOAD THE BLOB TO A LOCAL FILE
