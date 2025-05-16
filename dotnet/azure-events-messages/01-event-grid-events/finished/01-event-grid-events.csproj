@@ -8,4 +8,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Azure.Messaging.EventGrid" Version="4.30.0" />
+    <PackageReference Include="dotenv.net" Version="3.2.1" />
+  </ItemGroup>
+
 </Project>
