@@ -3,8 +3,8 @@
     "servers": {
         "Demo": {
             "type": "stdio",
-            "command": "uv",
-            "args": ["run",
+            "command": "python",
+            "args": ["-m",
                 "mcp_example.py"]
         }
     }
