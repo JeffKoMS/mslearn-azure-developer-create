@@ -2,4 +2,6 @@
 name = "mcp-server-client"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "mcp[cli]==1.8.0",
+]
