@@ -8,16 +8,15 @@ mcp = FastMCP("Demo")
 # Add an addition tool
 @mcp.tool()
 def add(a: int, b: int) -> int:
-    """Add two numbers"""
-    return a + b
+    """Add two numbers (a, b) and return the result"""
+    total = a + b
+    return f"Answer: {a} + {b} = {total}"
 
 
-# Add a dynamic greeting resource
+# Add a greeting tool
 @mcp.tool()
 def get_greeting(name: str) -> str:
-    """Get a personalized greeting"""
-    return f"Hello, {name}, you beautiful beast!"
+    """Enter your name and get a personalized greeting"""
+    return f"Hello, {name}, you look amazing today!"
 
-
-if __name__ == "__main__":
-    mcp.run()
+mcp.run()
