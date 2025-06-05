@@ -7,4 +7,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.1" />
+    <PackageReference Include="dotenv.net" Version="3.2.1" />
+  </ItemGroup>
+
 </Project>
