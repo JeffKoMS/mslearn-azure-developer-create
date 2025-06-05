@@ -11,15 +11,17 @@ var envVars = DotEnv.Read();
 string connectionString = envVars["EVENT_HUB_CONNECTION_STRING"];
 string eventHubName = envVars["EVENT_HUB_NAME"];
 
-// Add check for empty connection string or event hub name
+// Check for empty connection string or event hub name
 if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(eventHubName))
 {
     Console.WriteLine("Error: EVENT_HUB_CONNECTION_STRING and EVENT_HUB_NAME environment variables must be set.");
     return;
 }
 
-// number of events to be sent to the event hub
+// Number of events to be sent to the event hub
 int numOfEvents = 3;
+
+// CREATE A PRODUCER CLIENT AND SEND EVENTS
 
 // Create a producer client to send events to the event hub
 EventHubProducerClient producerClient = new EventHubProducerClient(
@@ -29,6 +31,8 @@ EventHubProducerClient producerClient = new EventHubProducerClient(
 // Create a batch of events 
 using EventDataBatch eventBatch = await producerClient.CreateBatchAsync();
 
+
+// Adding a random number to the event body and sending the events. 
 var random = new Random();
 for (int i = 1; i <= numOfEvents; i++)
 {
@@ -45,6 +49,7 @@ try
 {
     // Use the producer client to send the batch of events to the event hub
     await producerClient.SendAsync(eventBatch);
+
     Console.WriteLine($"A batch of {numOfEvents} events has been published.");
     Console.WriteLine("Check the Azure portal to see verify events in the Event Hub.");
     Console.WriteLine("When finished, press Enter to receive and print the events...");
@@ -54,6 +59,8 @@ finally
 {
     await producerClient.DisposeAsync();
 }
+
+// CREATE A CONSUMER CLIENT AND RECEIVE EVENTS
 
 // Receive and print events using EventHubConsumerClient
 await using var consumerClient = new EventHubConsumerClient(
