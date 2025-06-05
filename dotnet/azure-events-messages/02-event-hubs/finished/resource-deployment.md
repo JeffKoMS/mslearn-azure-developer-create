@@ -1,20 +1,19 @@
-rgName="contosorg$RANDOM"
+rgName="myResourceGroup"
 region="eastus"
 az group create --name $rgName --location $region
 
-
-
 # Create an Event Hubs namespace
-namespaceName="contosoehubns$RANDOM"
+namespaceName=eventhubsns$RANDOM
 az eventhubs namespace create --name $namespaceName --resource-group $rgName -l $region
 
 # Create an event hub. Specify a name for the event hub. 
-eventhubName="contosoehub$RANDOM"
+eventhubName=myEventHub$RANDOM
 az eventhubs eventhub create --name $eventhubName --resource-group $rgName --namespace-name $namespaceName
+echo $eventhubName
 
-# Get the resource ID for the namespace
-az eventhubs namespace show -g '<your-event-hub-resource-group>' -n '<your-event-hub-name> --query id
+# Get conn string to Hub namespace (requires event hub inclusion)
 
-## Assign the role
+eventhubConnStr=$(az eventhubs eventhub authorization-rule keys list -g $rgName --namespace-name $namespaceName --eventhub-name $eventhubName --name MyAuthRuleName)
 
-az role assignment create --assignee "<user@domain>" --role "Azure Event Hubs Data Owner" --scope "<your-resource-id>"
+echo $eventhubConnStr
+
