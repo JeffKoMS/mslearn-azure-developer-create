@@ -19,7 +19,7 @@ if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(eve
 }
 
 // number of events to be sent to the event hub
-int numOfEvents = 5;
+int numOfEvents = 3;
 
 // Create a producer client to send events to the event hub
 EventHubProducerClient producerClient = new EventHubProducerClient(
@@ -29,9 +29,12 @@ EventHubProducerClient producerClient = new EventHubProducerClient(
 // Create a batch of events 
 using EventDataBatch eventBatch = await producerClient.CreateBatchAsync();
 
+var random = new Random();
 for (int i = 1; i <= numOfEvents; i++)
 {
-    if (!eventBatch.TryAdd(new EventData(Encoding.UTF8.GetBytes($"Event {i}"))))
+    int randomNumber = random.Next(1, 101); // 1 to 100 inclusive
+    string eventBody = $"Event {randomNumber}";
+    if (!eventBatch.TryAdd(new EventData(Encoding.UTF8.GetBytes(eventBody))))
     {
         // if it is too large for the batch
         throw new Exception($"Event {i} is too large for the batch and cannot be sent.");
@@ -58,7 +61,21 @@ await using var consumerClient = new EventHubConsumerClient(
     connectionString,
     eventHubName);
 
-Console.WriteLine("Receiving events from the beginning of the stream...");
+Console.WriteLine("Receiving all events from the hub...");
+
+// Get total number of events in the hub by summing (last - first + 1) for all partitions
+long totalEventCount = 0;
+string[] partitionIds = await consumerClient.GetPartitionIdsAsync();
+foreach (var partitionId in partitionIds)
+{
+    PartitionProperties properties = await consumerClient.GetPartitionPropertiesAsync(partitionId);
+    if (properties.LastEnqueuedSequenceNumber >= properties.BeginningSequenceNumber)
+    {
+        totalEventCount += (properties.LastEnqueuedSequenceNumber - properties.BeginningSequenceNumber + 1);
+    }
+}
+
+Console.WriteLine($"Total events in the hub: {totalEventCount}");
 
 int receivedCount = 0;
 await foreach (PartitionEvent partitionEvent in consumerClient.ReadEventsAsync(startReadingAtEarliestEvent: true))
@@ -68,7 +85,7 @@ await foreach (PartitionEvent partitionEvent in consumerClient.ReadEventsAsync(s
         string body = Encoding.UTF8.GetString(partitionEvent.Data.Body.ToArray());
         Console.WriteLine($"Received event: {body}");
         receivedCount++;
-        if (receivedCount >= numOfEvents)
+        if (receivedCount >= totalEventCount)
         {
             Console.WriteLine("Done receiving events. Press Enter to exit...");
             Console.ReadLine();
