@@ -4,10 +4,9 @@ using Azure.Messaging.EventHubs.Consumer;
 using System.Text;
 using dotenv.net;
 
-// Load environment variables from .env file and assign
+// Load environment variables from .env file and assign to variables
 DotEnv.Load();
 var envVars = DotEnv.Read();
-
 string connectionString = envVars["EVENT_HUB_CONNECTION_STRING"];
 string eventHubName = envVars["EVENT_HUB_NAME"];
 
@@ -51,8 +50,7 @@ try
     await producerClient.SendAsync(eventBatch);
 
     Console.WriteLine($"A batch of {numOfEvents} events has been published.");
-    Console.WriteLine("Check the Azure portal to see verify events in the Event Hub.");
-    Console.WriteLine("When finished, press Enter to receive and print the events...");
+    Console.WriteLine("Press Enter to retrieve and print the events...");
     Console.ReadLine();
 }
 finally
@@ -62,13 +60,13 @@ finally
 
 // CREATE A CONSUMER CLIENT AND RECEIVE EVENTS
 
-// Receive and print events using EventHubConsumerClient
+// Create an EventHubConsumerClient
 await using var consumerClient = new EventHubConsumerClient(
     EventHubConsumerClient.DefaultConsumerGroupName,
     connectionString,
     eventHubName);
 
-Console.WriteLine("Receiving all events from the hub...");
+Console.WriteLine("Retrieving all events from the hub...");
 
 // Get total number of events in the hub by summing (last - first + 1) for all partitions
 long totalEventCount = 0;
@@ -84,17 +82,18 @@ foreach (var partitionId in partitionIds)
 
 Console.WriteLine($"Total events in the hub: {totalEventCount}");
 
-int receivedCount = 0;
+// Start retrieving events from the event hub and print to the console
+int retrievedCount = 0;
 await foreach (PartitionEvent partitionEvent in consumerClient.ReadEventsAsync(startReadingAtEarliestEvent: true))
 {
     if (partitionEvent.Data != null)
     {
         string body = Encoding.UTF8.GetString(partitionEvent.Data.Body.ToArray());
-        Console.WriteLine($"Received event: {body}");
-        receivedCount++;
-        if (receivedCount >= totalEventCount)
+        Console.WriteLine($"Retrieved event: {body}");
+        retrievedCount++;
+        if (retrievedCount >= totalEventCount)
         {
-            Console.WriteLine("Done receiving events. Press Enter to exit...");
+            Console.WriteLine("Done retrieving events. Press Enter to exit...");
             Console.ReadLine();
             return;
         }

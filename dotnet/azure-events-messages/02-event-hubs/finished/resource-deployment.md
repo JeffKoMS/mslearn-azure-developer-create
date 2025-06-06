@@ -12,7 +12,14 @@ az eventhubs eventhub create --name myEventHub --resource-group $resourceGroup -
 
 # Get conn string to Hub namespace (requires event hub inclusion)
 
-eventhubConnStr=$(az eventhubs eventhub authorization-rule keys list -g $resourceGroup --namespace-name $namespaceName --eventhub-name myEventHub --name MyAuthRuleName);EntityPath=myEventHub
+eventhubConnStr=$(
+  az eventhubs namespace authorization-rule keys list \
+    -g $resourceGroup \
+    --namespace-name $namespaceName \
+    --name RootManageSharedAccessKey \
+    --query primaryConnectionString \
+    --output tsv
+)";EntityPath=myEventHub"
 
 echo $eventhubConnStr
 
