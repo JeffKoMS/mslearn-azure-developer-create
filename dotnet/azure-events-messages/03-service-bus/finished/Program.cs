@@ -1,5 +1,6 @@
 ﻿using Azure.Messaging.ServiceBus;
 using Azure.Identity;
+using System.Timers;
 
 
 // TODO: Replace <YOUR-NAMESPACE> with your Service Bus namespace
@@ -49,8 +50,70 @@ finally
     // Calling DisposeAsync on client types is required to ensure that network
     // resources and other unmanaged objects are properly cleaned up.
     await sender.DisposeAsync();
-    await client.DisposeAsync();
+    //await client.DisposeAsync();
 }
 
-Console.WriteLine("Press any key to end the application");
+Console.WriteLine("Press any key to continue");
 Console.ReadKey();
+
+ServiceBusProcessor processor = client.CreateProcessor(queueName, new ServiceBusProcessorOptions());
+
+// Idle timeout in milliseconds
+const int idleTimeoutMs = 3000;
+System.Timers.Timer idleTimer = new(idleTimeoutMs);
+idleTimer.Elapsed += async (s, e) =>
+{
+    Console.WriteLine($"No messages received for {idleTimeoutMs / 1000} seconds. Stopping processor...");
+    await processor.StopProcessingAsync();
+};
+
+try
+{
+    // add handler to process messages
+    processor.ProcessMessageAsync += MessageHandler;
+
+    // add handler to process any errors
+    processor.ProcessErrorAsync += ErrorHandler;
+
+    // start processing 
+    idleTimer.Start();
+    await processor.StartProcessingAsync();
+
+    Console.WriteLine($"Processor started. Will stop after {idleTimeoutMs / 1000} seconds of inactivity.");
+    // Wait for the processor to stop
+    while (processor.IsProcessing)
+    {
+        await Task.Delay(500);
+    }
+    idleTimer.Stop();
+    Console.WriteLine("Stopped receiving messages");
+}
+finally
+{
+    // Dispose processor after use
+    await processor.DisposeAsync();
+}
+
+// Dispose client after use
+await client.DisposeAsync();
+
+// handle received messages
+async Task MessageHandler(ProcessMessageEventArgs args)
+{
+    string body = args.Message.Body.ToString();
+    Console.WriteLine($"Received: {body}");
+
+    // Reset the idle timer on each message
+    idleTimer.Stop();
+    idleTimer.Start();
+
+    // complete the message. message is deleted from the queue. 
+    await args.CompleteMessageAsync(args.Message);
+}
+
+// handle any errors when receiving messages
+Task ErrorHandler(ProcessErrorEventArgs args)
+{
+    Console.WriteLine(args.Exception.ToString());
+    return Task.CompletedTask;
+}
