@@ -1,9 +1,11 @@
 resourceGroup=rg-exercises
 location=eastus
 namespaceName=svcbusns$RANDOM
+echo $namespaceName
 
 
 az servicebus namespace create -g $resourceGroup -n $namespaceName -l $location
+
 
 az servicebus queue create -g $resourceGroup --namespace-name $namespaceName --name myQueue
 
