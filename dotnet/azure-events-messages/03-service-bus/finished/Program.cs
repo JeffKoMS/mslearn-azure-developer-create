@@ -7,6 +7,9 @@ using System.Timers;
 string svcbusNameSpace = "svcbusns8061.servicebus.windows.net";
 string queueName = "myQueue";
 
+
+// ADD CODE TO CREATE A SERVICE BUS CLIENT
+
 // Create a DefaultAzureCredentialOptions object to configure the DefaultAzureCredential
 DefaultAzureCredentialOptions options = new()
 {
@@ -14,11 +17,12 @@ DefaultAzureCredentialOptions options = new()
     ExcludeManagedIdentityCredential = true
 };
 
-// 
-
 // Create a Service Bus client using the namespace and DefaultAzureCredential
 // The DefaultAzureCredential will use the Azure CLI credentials, so ensure you are logged in
 ServiceBusClient client = new(svcbusNameSpace, new DefaultAzureCredential(options));
+
+
+// ADD CODE TO SEND MESSAGES TO THE QUEUE
 
 // Create a sender for the specified queue
 ServiceBusSender sender = client.CreateSender(queueName);
@@ -50,15 +54,19 @@ finally
     // Calling DisposeAsync on client types is required to ensure that network
     // resources and other unmanaged objects are properly cleaned up.
     await sender.DisposeAsync();
-    //await client.DisposeAsync();
 }
 
 Console.WriteLine("Press any key to continue");
 Console.ReadKey();
 
+
+// ADD CODE TO PROCESS MESSAGES FROM THE QUEUE
+
+// Create a processor that we can use to process the messages in the queue
 ServiceBusProcessor processor = client.CreateProcessor(queueName, new ServiceBusProcessorOptions());
 
-// Idle timeout in milliseconds
+// Idle timeout in milliseconds, the idle timer will stop the processor if there are no more 
+// messages in the queue to process
 const int idleTimeoutMs = 3000;
 System.Timers.Timer idleTimer = new(idleTimeoutMs);
 idleTimer.Elapsed += async (s, e) =>
@@ -94,9 +102,6 @@ finally
     await processor.DisposeAsync();
 }
 
-// Dispose client after use
-await client.DisposeAsync();
-
 // handle received messages
 async Task MessageHandler(ProcessMessageEventArgs args)
 {
@@ -117,3 +122,7 @@ Task ErrorHandler(ProcessErrorEventArgs args)
     Console.WriteLine(args.Exception.ToString());
     return Task.CompletedTask;
 }
+
+
+// Dispose client after use
+await client.DisposeAsync();
