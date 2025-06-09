@@ -7,7 +7,7 @@ echo $namespaceName
 az servicebus namespace create -g $resourceGroup -n $namespaceName -l $location
 
 
-az servicebus queue create -g $resourceGroup --namespace-name $namespaceName --name myQueue
+az servicebus queue create -g $resourceGroup --namespace-name $namespaceName --name myqueue
 
 
 # NOT DefaultCredential
@@ -26,8 +26,14 @@ echo $servicebusConnStr
 
 # DEFAULT CREDENTIAL - NEED TO ASSIGN ROLE
 
-userPrincipal=$(az rest --method GET --url https://graph.microsoft.com/v1.0/me --headers 'Content-Type=application/json' --query userPrincipalName --output tsv)
+userPrincipal=$(az rest --method GET --url https://graph.microsoft.com/v1.0/me \
+    --headers 'Content-Type=application/json' \
+    --query userPrincipalName --output tsv)
 
-resourceID=$(az servicebus namespace show --name $namespaceName --resource-group $resourceGroup --query id --output tsv)
+resourceID=$(az servicebus namespace show --name $namespaceName \
+    --resource-group $resourceGroup \
+    --query id --output tsv)
 
-az role assignment create --assignee $userPrincipal --role "Azure Service Bus Data Owner" --scope $resourceID
+az role assignment create --assignee $userPrincipal \
+    --role "Azure Service Bus Data Owner" \
+    --scope $resourceID
