@@ -4,7 +4,7 @@ using System.Timers;
 
 
 // TODO: Replace <YOUR-NAMESPACE> with your Service Bus namespace
-string svcbusNameSpace = "svcbusns8061.servicebus.windows.net";
+string svcbusNameSpace = "<YOUR-NAMESPACE>.servicebus.windows.net";
 string queueName = "myqueue";
 
 
