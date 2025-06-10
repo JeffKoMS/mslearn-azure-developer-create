@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 // Create a unique name for the queue
 // TODO: Replace the <YOUR-STORAGE-ACCT-NAME> placeholder 
 string queueName = "myqueue-" + Guid.NewGuid().ToString();
-string storageAccountName = "storactname20135";
+string storageAccountName = "<YOUR-STORAGE-ACCT-NAME>";
 
 // ADD CODE TO CREATE A QUEUE CLIENT AND CREATE A QUEUE
 
