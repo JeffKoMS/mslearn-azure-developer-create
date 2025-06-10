@@ -12,6 +12,7 @@ string storageAccountName = "storactname20135";
 
 // ADD CODE TO CREATE A QUEUE CLIENT AND CREATE A QUEUE
 
+// Create a DefaultAzureCredentialOptions object to exclude certain credentials
 DefaultAzureCredentialOptions options = new()
 {
     ExcludeEnvironmentCredential = true,
