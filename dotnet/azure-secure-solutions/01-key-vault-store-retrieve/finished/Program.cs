@@ -2,7 +2,8 @@
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 
-// Azure Key Vault URL - Replace with your actual Key Vault name
+// Replace YOUR-KEYVAULT-NAME with your actual Key Vault name
+//string KeyVaultUrl = "https://YOUR-KEYVAULT-NAME.vault.azure.net/";
 string KeyVaultUrl = "https://keyvaultname3436.vault.azure.net/";
 
 // ADD CODE TO CREATE A CLIENT
