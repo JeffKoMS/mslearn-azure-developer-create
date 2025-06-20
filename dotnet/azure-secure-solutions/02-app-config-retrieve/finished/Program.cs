@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Azure.Identity;
 
 //string endpoint = "YOUR_APP_CONFIGURATION_ENDPOINT"; // Replace with your Azure App Configuration endpoint
-string endpoint = "https://mslearnexercise.azconfig.io"; // Replace with your Azure App Configuration endpoint
+string endpoint = "https://mslearn-exercise-2.azconfig.io"; // Replace with your Azure App Configuration endpoint
 
 // Configure authentication options for connecting to Azure Key Vault
 DefaultAzureCredentialOptions credentialOptions = new()
