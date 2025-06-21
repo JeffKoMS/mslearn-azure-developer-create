@@ -1,21 +1,20 @@
 ﻿using Azure.Messaging.EventHubs;
 using Azure.Messaging.EventHubs.Producer;
 using Azure.Messaging.EventHubs.Consumer;
+using Azure.Identity;
 using System.Text;
-using dotenv.net;
 
-// Load environment variables from .env file and assign to variables
-DotEnv.Load();
-var envVars = DotEnv.Read();
-string connectionString = envVars["EVENT_HUB_CONNECTION_STRING"];
-string eventHubName = envVars["EVENT_HUB_NAME"];
+// TO-DO: Replace YOUR_EVENT_HUB_NAMESPACE with your actual Event Hub namespace
+// string namespaceURL = "YOUR_EVENT_HUB_NAMESPACE.servicebus.windows.net";
+string namespaceURL = "eventhubsns6837.servicebus.windows.net";
+string eventHubName = "myEventHub";
 
-// Check for empty connection string or event hub name
-if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(eventHubName))
+// Create a DefaultAzureCredentialOptions object to exclude certain credentials
+DefaultAzureCredentialOptions options = new()
 {
-    Console.WriteLine("Error: EVENT_HUB_CONNECTION_STRING and EVENT_HUB_NAME environment variables must be set.");
-    return;
-}
+    ExcludeEnvironmentCredential = true,
+    ExcludeManagedIdentityCredential = true
+};
 
 // Number of events to be sent to the event hub
 int numOfEvents = 3;
@@ -24,8 +23,9 @@ int numOfEvents = 3;
 
 // Create a producer client to send events to the event hub
 EventHubProducerClient producerClient = new EventHubProducerClient(
-    connectionString,
-    eventHubName);
+    namespaceURL,
+    eventHubName,
+    new DefaultAzureCredential(options));
 
 // Create a batch of events 
 using EventDataBatch eventBatch = await producerClient.CreateBatchAsync();
@@ -63,12 +63,15 @@ finally
 // Create an EventHubConsumerClient
 await using var consumerClient = new EventHubConsumerClient(
     EventHubConsumerClient.DefaultConsumerGroupName,
-    connectionString,
-    eventHubName);
+    namespaceURL,
+    eventHubName,
+    new DefaultAzureCredential(options));
 
+Console.Clear();
 Console.WriteLine("Retrieving all events from the hub...");
 
 // Get total number of events in the hub by summing (last - first + 1) for all partitions
+// This count is used to determine when to stop reading events
 long totalEventCount = 0;
 string[] partitionIds = await consumerClient.GetPartitionIdsAsync();
 foreach (var partitionId in partitionIds)
@@ -79,8 +82,6 @@ foreach (var partitionId in partitionIds)
         totalEventCount += (properties.LastEnqueuedSequenceNumber - properties.BeginningSequenceNumber + 1);
     }
 }
-
-Console.WriteLine($"Total events in the hub: {totalEventCount}");
 
 // Start retrieving events from the event hub and print to the console
 int retrievedCount = 0;
