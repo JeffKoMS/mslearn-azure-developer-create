@@ -23,8 +23,8 @@ az deployment group create \
     --template-uri "https://raw.githubusercontent.com/Azure-Samples/azure-event-grid-viewer/main/azuredeploy.json" \
     --parameters siteName=$siteName hostingPlanName=viewerhost
 
-echo "Your web app URL: ${siteURL}"
-
+echo "Your web app URL: ${siteURL}", open the link before continuing
+read -p "Press enter to continue once the web app is open..."
 
 # Create an event subscription for the topic
 endpoint="${siteURL}/api/updates"
