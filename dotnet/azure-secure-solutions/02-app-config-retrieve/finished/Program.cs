@@ -2,9 +2,10 @@
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Azure.Identity;
 
-// Set the Azure App Configuration endpoint, replace YOUR_APP_CONFIGURATION_ENDPOINT
-// with your actual endpoint URL
-//string endpoint = "YOUR_APP_CONFIGURATION_ENDPOINT"; 
+// Set the Azure App Configuration endpoint, replace YOUR_APP_CONFIGURATION_NAME
+// with the name of your actual App Configuration service
+
+//string endpoint = "https://YOUR_APP_CONFIGURATION_NAME.azconfig.io"; 
 string endpoint = "https://mslearn-exercise-2.azconfig.io"; 
 
 // Configure which authentication methods to use
