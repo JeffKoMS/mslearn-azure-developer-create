@@ -6,9 +6,6 @@ resourceGroup=rg-exercises
 location=eastus
 namespaceName=eventhubsns$RANDOM
 
-echo "Record this name: ${namespaceName}, it will be used later in the lab."
-read -p "Press enter to continue..."
-
 # Create an event hub namespace
 az eventhubs namespace create --name $namespaceName --resource-group $resourceGroup -l $location
 
@@ -28,3 +25,6 @@ resourceID=$(az eventhubs namespace show --resource-group $resourceGroup \
 az role assignment create --assignee $userPrincipal \
     --role "Azure Event Hubs Data Owner" \
     --scope $resourceID
+
+# Info you need to complete the lab
+echo "Record this name: ${namespaceName}, it will be used later in the lab."
