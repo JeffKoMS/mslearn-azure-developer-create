@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>_01_cosmosdb_resources_sdk</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="dotenv.net" Version="3.2.1" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.*" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.*" />
+  </ItemGroup>
+
+</Project>
