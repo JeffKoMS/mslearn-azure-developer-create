@@ -1,33 +1,36 @@
-﻿using Azure.Storage;
-using Azure.Storage.Blobs;
+﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using dotenv.net;
+using Azure.Identity;
 
 Console.WriteLine("Azure Blob Storage exercise\n");
 
-// Load environment variables from .env file and assign
-DotEnv.Load();
-var envVars = DotEnv.Read();
+// Create a DefaultAzureCredentialOptions object to configure the DefaultAzureCredential
+DefaultAzureCredentialOptions options = new()
+{
+    ExcludeEnvironmentCredential = true,
+    ExcludeManagedIdentityCredential = true
+};
 
 // Run the examples asynchronously, wait for the results before proceeding
 ProcessAsync().GetAwaiter().GetResult();
 
-Console.WriteLine("Press enter to exit the sample application.");
+Console.WriteLine("\nPress enter to exit the sample application.");
 Console.ReadLine();
 
 async Task ProcessAsync()
 {
     // CREATE A BLOB STORAGE CLIENT
     
-    // Create a credential using the storage account name and key
-    string accountName = envVars["STORAGE_ACCOUNT_NAME"];
-    string accountKey = envVars["STORAGE_ACCOUNT_KEY"];
+    // Create a credential using DefaultAzureCredential with configured options
+    //string accountName = "YOUR_ACCOUNT_NAME"; // Replace with your storage account name
+    string accountName = "storageacct16328"; // Replace with your storage account name
     
-    StorageSharedKeyCredential sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+    // Use the DefaultAzureCredential with the options configured at the top of the program
+    DefaultAzureCredential credential = new DefaultAzureCredential(options);
     
-    // Create the BlobServiceClient using the endpoint and shared key credential
+    // Create the BlobServiceClient using the endpoint and DefaultAzureCredential
     string blobServiceEndpoint = $"https://{accountName}.blob.core.windows.net";
-    BlobServiceClient blobServiceClient = new BlobServiceClient(new Uri(blobServiceEndpoint), sharedKeyCredential);
+    BlobServiceClient blobServiceClient = new BlobServiceClient(new Uri(blobServiceEndpoint), credential);
 
     // CREATE A CONTAINER
 
@@ -104,7 +107,7 @@ async Task ProcessAsync()
 
     // DOWNLOAD THE BLOB TO A LOCAL FILE
     
-    // Add the string "DOWNLOADED" before the .txt extension so it doesn't 
+    // Adds the string "DOWNLOADED" before the .txt extension so it doesn't 
     // overwrite the original file
     
     string downloadFilePath = localFilePath.Replace(".txt", "DOWNLOADED.txt");
@@ -119,23 +122,5 @@ async Task ProcessAsync()
         await download.Content.CopyToAsync(downloadFileStream);
     }
     
-    Console.WriteLine("Locate the local file in the 'data' directory created earlier to verify it was downloaded.");
-    Console.WriteLine("Press 'Enter' to continue.");
-    Console.ReadLine();
-
-    // DELETE THE BLOB AND CONTAINER
-    
-    // Delete the container and the local files
-    Console.WriteLine("Delete container and local files. Press 'Enter' to continue.");
-    Console.ReadLine();
-    
-    await containerClient.DeleteAsync();
-    Console.WriteLine("Container deleted successfully.");
-    
-    Console.WriteLine("Deleting the local source and downloaded files...");
-    File.Delete(localFilePath);
-    File.Delete(downloadFilePath);
-    
-    Console.WriteLine("Finished cleaning up.");
-
+    Console.WriteLine("Blob downloaded successfully to: {0}", downloadFilePath);
 }
