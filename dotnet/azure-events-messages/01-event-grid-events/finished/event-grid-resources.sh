@@ -37,5 +37,6 @@ az eventgrid event-subscription create \
     --endpoint $endpoint
 
 # retrieve the topic endpoint and key
+echo "Record the topic endpoint and key below, you will need them later"
 az eventgrid topic show --name $topicName -g $resourceGroup --query "endpoint" --output tsv
 az eventgrid topic key list --name $topicName -g $resourceGroup --query "key1" --output tsv

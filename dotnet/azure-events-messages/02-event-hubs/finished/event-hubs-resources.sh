@@ -7,10 +7,15 @@ location=eastus
 namespaceName=eventhubsns$RANDOM
 
 # Create an event hub namespace
-az eventhubs namespace create --name $namespaceName --resource-group $resourceGroup -l $location
+az eventhubs namespace create \
+    --name $namespaceName \
+    --resource-group $resourceGroup \
+    --location $location
 
 # Create an event hub
-az eventhubs eventhub create --name myEventHub --resource-group $resourceGroup \
+az eventhubs eventhub create \
+    --name myEventHub \
+    --resource-group $resourceGroup \
     --namespace-name $namespaceName
 
 # Assign the "Azure Event Hubs Data Owner" role to the user, allows send and receive operations
