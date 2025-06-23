@@ -13,14 +13,10 @@ az storage account create --name $accountName \
     --location $location \
     --sku Standard_LRS 
 
-echo "Azure Storage account $accountName created."
-
 # Add needed role for the user
 userPrincipal=$(az rest --method GET --url https://graph.microsoft.com/v1.0/me \
     --headers 'Content-Type=application/json' \
     --query userPrincipalName --output tsv)
-
-echo "User principal: $userPrincipal"
 
 resourceID=$(az storage account show \
     --name $accountName \
@@ -28,8 +24,8 @@ resourceID=$(az storage account show \
     --query id \
     --output tsv)
 
-echo "Resource ID: $resourceID"
-
 az role assignment create --assignee $userPrincipal \
     --role "Storage Blob Data Owner" \
     --scope $resourceID
+
+echo "Record this name, you will need it later in the exercise: $accountName"
