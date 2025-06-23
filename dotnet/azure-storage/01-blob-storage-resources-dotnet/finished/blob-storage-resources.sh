@@ -1,6 +1,7 @@
 #!/bin/bash
-# This script is used to set up the Azure resources for the project.
-# Be sure  to update the resource group name.
+# This script deploys resources for the exercise, used for testing
+# Make sure you are logged in to the account you want to use.
+# Be sure to update the resource group name.
 
 resourceGroup=rg-exercises
 location=eastus

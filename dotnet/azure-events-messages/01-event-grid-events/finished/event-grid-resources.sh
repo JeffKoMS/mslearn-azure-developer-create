@@ -1,5 +1,6 @@
 # !/bin/bash
-# This script deploys resources for the event grid exercise, used for testing
+# This script deploys resources for the exercise, used for testing
+# Make sure you are logged in to the account you want to use.
 # Be sure to update the resource group and location as needed
 
 let rNum=$RANDOM
