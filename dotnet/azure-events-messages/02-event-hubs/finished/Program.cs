@@ -5,8 +5,7 @@ using Azure.Identity;
 using System.Text;
 
 // TO-DO: Replace YOUR_EVENT_HUB_NAMESPACE with your actual Event Hub namespace
-// string namespaceURL = "YOUR_EVENT_HUB_NAMESPACE.servicebus.windows.net";
-string namespaceURL = "eventhubsns6837.servicebus.windows.net";
+string namespaceURL = "YOUR_EVENT_HUB_NAMESPACE.servicebus.windows.net";
 string eventHubName = "myEventHub";
 
 // Create a DefaultAzureCredentialOptions object to exclude certain credentials

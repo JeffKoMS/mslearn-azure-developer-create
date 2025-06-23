@@ -22,8 +22,7 @@ async Task ProcessAsync()
     // CREATE A BLOB STORAGE CLIENT
     
     // Create a credential using DefaultAzureCredential with configured options
-    //string accountName = "YOUR_ACCOUNT_NAME"; // Replace with your storage account name
-    string accountName = "storageacct16328"; // Replace with your storage account name
+    string accountName = "YOUR_ACCOUNT_NAME"; // Replace with your storage account name
     
     // Use the DefaultAzureCredential with the options configured at the top of the program
     DefaultAzureCredential credential = new DefaultAzureCredential(options);
