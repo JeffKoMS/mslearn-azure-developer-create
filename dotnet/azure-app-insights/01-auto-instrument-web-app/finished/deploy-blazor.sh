@@ -11,4 +11,8 @@ dotnet publish -c Release -o ./publish # Publish the Blazor app, need for zip fi
 cd publish
 zip -r ../app.zip . # Create a zip file of the published app
 cd ..
-az webapp deploy  --name jjkcliblazor --resource-group $resourceGroup --src-path ./app.zip
+
+# Replace the --name value with the name of your web app
+az webapp deploy --name jjkcliblazor \
+    --resource-group $resourceGroup \
+    --src-path ./app.zip
