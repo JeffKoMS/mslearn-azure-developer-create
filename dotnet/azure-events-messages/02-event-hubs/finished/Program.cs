@@ -5,7 +5,7 @@ using Azure.Identity;
 using System.Text;
 
 // TO-DO: Replace YOUR_EVENT_HUB_NAMESPACE with your actual Event Hub namespace
-string namespaceURL = "YOUR_EVENT_HUB_NAMESPACE.servicebus.windows.net";
+string namespaceURL = "eventhubsns6835.servicebus.windows.net";
 string eventHubName = "myEventHub";
 
 // Create a DefaultAzureCredentialOptions object to exclude certain credentials
@@ -76,7 +76,7 @@ string[] partitionIds = await consumerClient.GetPartitionIdsAsync();
 foreach (var partitionId in partitionIds)
 {
     PartitionProperties properties = await consumerClient.GetPartitionPropertiesAsync(partitionId);
-    if (properties.LastEnqueuedSequenceNumber >= properties.BeginningSequenceNumber)
+    if (!properties.IsEmpty && properties.LastEnqueuedSequenceNumber >= properties.BeginningSequenceNumber)
     {
         totalEventCount += (properties.LastEnqueuedSequenceNumber - properties.BeginningSequenceNumber + 1);
     }
