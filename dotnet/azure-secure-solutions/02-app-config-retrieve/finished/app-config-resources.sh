@@ -10,7 +10,6 @@ appConfigName=appconfigname$RANDOM
 az appconfig create --location $location \
     --name $appConfigName \
     --resource-group $resourceGroup \
-    --disable-local-auth true
 
 userPrincipal=$(az rest --method GET --url https://graph.microsoft.com/v1.0/me \
     --headers 'Content-Type=application/json' \
