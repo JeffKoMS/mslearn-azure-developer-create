@@ -5,23 +5,388 @@
   <title>Real Time Voice</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-    h1 { color: #1e4bb8; }
-    footer { margin-top: 3rem; font-size: 0.8rem; color: #555; }
-    .container { max-width: 720px; }
+    :root { color-scheme: light dark; }
+    /* Color tokens for adaptive theming */
+    :root {
+      --c-bg: #ffffff;
+      --c-fg: #1a1a1a;
+      --c-muted: #666;
+      --c-border: #c5c5c5;
+      --c-accent: #1e4bb8;
+      --c-status-idle: #f4f5f7;
+      --c-status-ready: #e3edff;
+      --c-status-processing: #fff3d6;
+      --c-status-listening: #d9f7ec;
+      --c-status-speaking: #fbe7ff;
+      --c-status-error: #ffe0e0;
+      --c-status-stopped: #ececec;
+      --c-log-bg: #111;
+      --c-log-fg: #e0e0e0;
+      --c-scrollbar: #555;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --c-bg: #0f1115;
+        --c-fg: #e5e7eb;
+        --c-muted: #9ba3af;
+        --c-border: #2d3846;
+        --c-accent: #6ea8ff;
+        --c-status-idle: #1d2530;
+        --c-status-ready: #102a44;
+        --c-status-processing: #4a3700;
+        --c-status-listening: #073b2a;
+        --c-status-speaking: #43214b;
+        --c-status-error: #4a1111;
+        --c-status-stopped: #2a323c;
+        --c-log-bg: #0c0c0f;
+        --c-log-fg: #d1d5db;
+        --c-scrollbar: #444;
+      }
+    }
+    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; line-height:1.4; background: var(--c-bg); color: var(--c-fg); }
+    h1 { color: var(--c-accent); margin-top:0; }
+    footer { margin-top: 3rem; font-size: 0.7rem; color: var(--c-muted); }
+    .container { max-width: 880px; }
+    button { cursor: pointer; background: var(--c-accent); color:#fff; border: none; border-radius:6px; }
+    button:disabled { opacity:.55; cursor: not-allowed; }
+    #statusBox { transition: background .25s, color .25s; color: var(--c-fg); border:1px solid var(--c-border); }
+    #log { background:var(--c-log-bg); color:var(--c-log-fg); padding:.75rem 1rem; border-radius:6px; max-height:260px; overflow:auto; font-size:.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; border:1px solid var(--c-border); }
+    #log .err { color:#ff8080; }
+    #log .dbg { color:#8ab4f8; }
+    #log .warn { color:#ffd479; }
+    details[open] summary { font-weight:600; }
+    small.hint { color: var(--c-muted); }
+    ::-webkit-scrollbar { width:8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius:4px; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Real-Time Voice Demo</h1>
-    <p>This is a placeholder single-page Flask app. Extend this page to add real-time voice features.</p>
-    <ul>
-      <li>Python package entry point: <code>real_time_voice.flask_app:main</code></li>
-      <li>Console script: <code>real-time-voice-web</code></li>
-      <li>Dev server default: http://127.0.0.1:5000/</li>
-    </ul>
+  <p>This page streams <strong>your microphone audio</strong> to the server and plays the assistant's synthesized audio. Grant microphone permission when prompted. You can begin speaking when <strong>Status:</strong> ready.</p>
+    <div style="margin:1rem 0;display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button id="startBtn" style="padding:.6rem 1.2rem;font-size:1rem;">Start Session</button>
+      <button id="stopBtn" style="padding:.6rem 1.2rem;font-size:1rem;" disabled>Stop Session</button>
+    </div>
+    <div id="statusBox" style="padding:.75rem 1rem;border:1px solid #ccc;border-radius:6px;background:#f9f9f9;min-height:3.25rem;">
+      <strong>Status:</strong> <span id="statusText">Idle</span><br/>
+      <small id="statusMsg">Click Start to begin a voice session.</small>
+    </div>
+    <details style="margin-top:1rem;">
+      <summary>Environment variables required (server)</summary>
+      <ul>
+        <li><code>VOICE_LIVE_MODEL</code></li>
+        <li><code>VOICE_LIVE_VOICE</code></li>
+        <li><code>AZURE_VOICE_LIVE_API_KEY</code> (or DefaultAzureCredential chain)</li>
+        <li><code>AZURE_VOICE_LIVE_ENDPOINT</code> (optional; default <code>wss://api.voicelive.com/v1</code>)</li>
+        <li><code>VOICE_LIVE_INSTRUCTIONS</code> (optional)</li>
+      </ul>
+      <p class="small hint">The browser sends 24kHz mono PCM16 base64 chunks to <code>/audio-chunk</code>. The server emits status, log & audio events via <code>/events</code> (SSE).</p>
+    </details>
+    <h3 style="margin-top:1.75rem;">Logs</h3>
+    <div id="log" aria-live="polite"></div>
+    <p class="small hint">Only recent ~250 lines kept in memory.</p>
+
+    <script>
+      // =============================
+      // UI ELEMENTS
+      // =============================
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const statusBox = document.getElementById('statusBox');
+      const statusText = document.getElementById('statusText');
+      const statusMsg = document.getElementById('statusMsg');
+      const logEl = document.getElementById('log');
+
+      // =============================
+      // STATE
+      // =============================
+      let eventSource = null;
+      let micStream = null;
+      let audioContext = null;
+      let processorNode = null; // ScriptProcessorNode fallback
+      let capturing = false;
+      let pendingFloat = [];
+      let inputSampleRate = 48000; // default; updated after context creation
+      const TARGET_RATE = 24000;
+      const CHUNK_DURATION_MS = 300; // approx size per send
+      const MAX_LOG_LINES = 250;
+      let nextPlayTime = 0; // scheduling assistant audio
+      let stopped = false;
+
+      function log(msg, level='info', obj){
+        const line = document.createElement('div');
+        line.className = level === 'error' ? 'err' : level === 'debug' ? 'dbg' : level === 'warn' ? 'warn' : '';
+        const ts = new Date().toISOString().split('T')[1].replace('Z','');
+        line.textContent = `[${ts} ${level}] ${msg}`;
+        if(obj) {
+          line.title = typeof obj === 'string' ? obj : JSON.stringify(obj).slice(0,300);
+        }
+        logEl.appendChild(line);
+        while(logEl.children.length > MAX_LOG_LINES) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      let readySince = null;
+      function updateStatusUI(data){
+        if(!data) return;
+        statusText.textContent = data.state;
+        statusMsg.textContent = data.message || '';
+        const s = data.state;
+        let colorVar = 'var(--c-status-idle)';
+        if(['starting','processing'].includes(s)) colorVar = 'var(--c-status-processing)';
+        else if(s === 'assistant_speaking') colorVar = 'var(--c-status-speaking)';
+        else if(s === 'listening') colorVar = 'var(--c-status-listening)';
+        else if(s === 'error') colorVar = 'var(--c-status-error)';
+        else if(s === 'ready') colorVar = 'var(--c-status-ready)';
+        else if(s === 'stopped') colorVar = 'var(--c-status-stopped)';
+        statusBox.style.background = colorVar;
+        if(s === 'stopped' || s === 'idle' || s === 'error') {
+          stopMicCapture();
+          stopBtn.disabled = true;
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start Session';
+        }
+        if(s === 'ready') {
+          if(!readySince) readySince = performance.now();
+        } else {
+          readySince = null;
+        }
+        if(s === 'ready' && !capturing && !stopped) {
+          startMicCapture().catch(e=>log('Mic capture failed: '+e,'error'));
+        }
+      }
+      // Gentle nudge: if still Ready after 3s and user hasn't spoken (no transition to listening), remind them
+      setInterval(()=>{
+        if(readySince && (performance.now() - readySince) > 3000 && statusText.textContent === 'ready') {
+          if(!statusMsg.textContent.includes('Speak')) {
+            statusMsg.textContent = 'Ready – start speaking now.';
+          }
+        }
+      }, 1000);
+
+      // =============================
+      // SSE HANDLING
+      // =============================
+      function openEventSource(){
+        if(eventSource){ eventSource.close(); }
+        eventSource = new EventSource('/events');
+        eventSource.onmessage = (ev) => {
+          if(!ev.data) return;
+          try {
+            const data = JSON.parse(ev.data);
+            if(data.type === 'status'){
+              updateStatusUI(data);
+            } else if(data.type === 'audio') {
+              playAssistantPcm16(data.audio);
+            } else if(data.type === 'log') {
+              log(data.msg || data.event_type || JSON.stringify(data), data.level || 'info');
+            }
+          } catch(e){
+            log('Bad SSE message: '+ e,'error');
+          }
+        };
+        eventSource.onerror = (e) => {
+          log('SSE connection error (will retry if closed).','warn');
+        };
+        log('SSE connection opened');
+      }
+
+      // =============================
+      // AUDIO CAPTURE & ENCODE
+      // =============================
+      function ensureAudioContext(){
+        if(!audioContext){
+          audioContext = new (window.AudioContext || window.webkitAudioContext)({sampleRate: 48000});
+          inputSampleRate = audioContext.sampleRate;
+          nextPlayTime = audioContext.currentTime;
+        }
+      }
+
+      async function startMicCapture(){
+        if(capturing) return;
+        ensureAudioContext();
+        log('Requesting microphone…');
+        micStream = await navigator.mediaDevices.getUserMedia({audio: { echoCancellation:true, noiseSuppression:true, channelCount:1 }, video:false});
+        const source = audioContext.createMediaStreamSource(micStream);
+        const BUFFER_SIZE = 4096; // 4096 / 48000 ~= 85ms
+        processorNode = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+        let lastSend = performance.now();
+        processorNode.onaudioprocess = (ev) => {
+          if(!capturing) return;
+          const input = ev.inputBuffer.getChannelData(0);
+          pendingFloat.push(new Float32Array(input));
+          const now = performance.now();
+            // Send every CHUNK_DURATION_MS or if backlog large
+          if(now - lastSend >= CHUNK_DURATION_MS || pendingFloat.length > 12){
+            flushPendingAudio();
+            lastSend = now;
+          }
+        };
+        source.connect(processorNode);
+        processorNode.connect(audioContext.destination); // required for some browsers
+        capturing = true;
+        log('Microphone capture started');
+      }
+
+      function stopMicCapture(){
+        if(!capturing) return;
+        capturing = false;
+        if(processorNode){ try { processorNode.disconnect(); } catch(_){} }
+        if(micStream){
+          micStream.getTracks().forEach(t=>t.stop());
+          micStream = null;
+        }
+        pendingFloat = [];
+        log('Microphone capture stopped');
+      }
+
+      function mergePendingFloat(){
+        if(!pendingFloat.length) return null;
+        let total = 0;
+        for(const arr of pendingFloat) total += arr.length;
+        const merged = new Float32Array(total);
+        let offset=0;
+        for(const arr of pendingFloat){ merged.set(arr, offset); offset += arr.length; }
+        pendingFloat = [];
+        return merged;
+      }
+
+      function downsampleToInt16(float32, inRate, outRate){
+        if(!float32) return null;
+        if(inRate === outRate){
+          const int16 = new Int16Array(float32.length);
+          for(let i=0;i<float32.length;i++){
+            const s = Math.max(-1, Math.min(1, float32[i]));
+            int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          return int16;
+        }
+        const ratio = inRate / outRate;
+        const newLen = Math.round(float32.length / ratio);
+        const int16 = new Int16Array(newLen);
+        for(let i=0;i<newLen;i++){
+          const idx = Math.floor(i * ratio);
+          const s = Math.max(-1, Math.min(1, float32[idx]));
+            int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return int16;
+      }
+
+      function int16ToBase64(int16){
+        if(!int16) return null;
+        const bytes = new Uint8Array(int16.buffer);
+        let binary='';
+        for(let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function flushPendingAudio(){
+        const merged = mergePendingFloat();
+        if(!merged || !merged.length) return;
+        const int16 = downsampleToInt16(merged, inputSampleRate, TARGET_RATE);
+        const b64 = int16ToBase64(int16);
+        if(!b64) return;
+        sendAudioChunk(b64);
+      }
+
+      async function sendAudioChunk(b64){
+        try {
+          const r = await fetch('/audio-chunk', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({audio: b64}) });
+          if(!r.ok){
+            if(r.status === 400) {
+              log('Audio chunk rejected: '+ r.status,'warn');
+            } else {
+              log('Audio send failed: '+ r.status,'warn');
+            }
+          }
+        } catch(e){
+          log('Audio send error: '+ e, 'warn');
+        }
+      }
+
+      // Flush any straggling audio periodically (safety)
+      setInterval(()=>{ if(capturing) flushPendingAudio(); }, 500);
+
+      // =============================
+      // ASSISTANT AUDIO PLAYBACK
+      // =============================
+      function playAssistantPcm16(b64){
+        try {
+          ensureAudioContext();
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+          const view = new DataView(bytes.buffer);
+          const samples = view.byteLength / 2;
+          const floatBuf = new Float32Array(samples);
+          for(let i=0;i<samples;i++){
+            const s = view.getInt16(i*2, true) / 0x8000; // little-endian
+            floatBuf[i] = s;
+          }
+          const audioBuf = audioContext.createBuffer(1, floatBuf.length, TARGET_RATE);
+          audioBuf.copyToChannel(floatBuf, 0, 0);
+          const src = audioContext.createBufferSource();
+          src.buffer = audioBuf;
+          src.connect(audioContext.destination);
+          const now = audioContext.currentTime;
+          if(nextPlayTime < now) nextPlayTime = now + 0.01; // small lead
+          src.start(nextPlayTime);
+          nextPlayTime += audioBuf.duration;
+        } catch(e) {
+          log('Playback error: '+ e,'error');
+        }
+      }
+
+      // =============================
+      // SESSION CONTROLS
+      // =============================
+      async function startSession(){
+        stopped = false;
+        log('Starting session…');
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        startBtn.textContent = 'Starting…';
+        try {
+          const res = await fetch('/start-session', {method:'POST'});
+          const js = await res.json();
+          if(!res.ok){
+            log('Failed to start: '+ (js.status?.last_error || res.status), 'error');
+            updateStatusUI(js.status || js);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            startBtn.textContent = 'Start Session';
+            return;
+          }
+          updateStatusUI(js.status || js);
+          openEventSource();
+        } catch(e){
+          log('Start error: '+ e,'error');
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          startBtn.textContent = 'Start Session';
+        }
+      }
+
+      async function stopSession(){
+        stopped = true;
+        log('Stopping session…');
+        try { await fetch('/stop-session', {method:'POST'}); } catch(_){ }
+        if(eventSource){ eventSource.close(); eventSource = null; }
+        stopMicCapture();
+        updateStatusUI({state:'stopped', message:'Session stopped.'});
+      }
+
+      startBtn.addEventListener('click', startSession);
+      stopBtn.addEventListener('click', stopSession);
+      window.addEventListener('beforeunload', ()=>{ try { if(eventSource) eventSource.close(); } catch(_){} });
+
+      // Passive init (establish SSE early for existing session)
+      openEventSource();
+    </script>
     <footer>
-      <p>Generated on 2025-09-12.</p>
+      <p>Prototype front-end (browser PCM16 streaming & SSE playback). Updated 2025-09-12.</p>
     </footer>
   </div>
 </body>
