@@ -126,16 +126,16 @@ wheels = [
 
 [[package]]
 name = "azure-ai-voicelive"
-version = "1.0.0b1"
+version = "1.0.0b2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "isodate" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6c/ff/5c6b935aec92c125bd42ae549e94c7808e59336514b1dd53dab30af51c23/azure_ai_voicelive-1.0.0b1.tar.gz", hash = "sha256:8fb7bb36dee85d029049d3ef0736f02c7dfaacb6283c11455db3063767b38ccf", size = 90193, upload-time = "2025-08-29T00:54:50.737Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/f3/e8611a2b3b361109fde9cd0c5386552fba2f40097f14c74036eab520b173/azure_ai_voicelive-1.0.0b2.tar.gz", hash = "sha256:8af8e81fcefdfab7799233a4036d216b8274bdda2e39149f5f9f76488314029f", size = 91084, upload-time = "2025-09-11T05:23:32.823Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/2e/4f7d545f83d97c5e672cf20a6b2e99bc55b872e7a48fb538eb32f17275ee/azure_ai_voicelive-1.0.0b1-py3-none-any.whl", hash = "sha256:5c20cc2fbc5add0099f2b42453c9a9cc9f621eb31371c925f60a341c380ab5f4", size = 82263, upload-time = "2025-08-29T00:54:52.435Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/13/1ed4e49a94a98dd30d85872f4e41f2a8f31ff2ed1ba80200a24e6f068b76/azure_ai_voicelive-1.0.0b2-py3-none-any.whl", hash = "sha256:6277d078e3e5f96e7408648a4c78b5e9e9440d6f79a63ac20dc13516dbc56d2a", size = 82945, upload-time = "2025-09-11T05:23:34.337Z" },
 ]
 
 [[package]]
@@ -937,7 +937,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = "==3.11.18" },
-    { name = "azure-ai-voicelive", specifier = "==1.0.0b1" },
+    { name = "azure-ai-voicelive", specifier = "==1.0.0b2" },
     { name = "azure-core", specifier = ">=1.35.0" },
     { name = "azure-identity", specifier = "==1.22.0" },
     { name = "certifi", specifier = "==2025.4.26" },
