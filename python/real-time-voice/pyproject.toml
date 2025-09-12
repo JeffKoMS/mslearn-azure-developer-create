@@ -1,0 +1,24 @@
+[project]
+name = "real-time-voice"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "JeffKoMS", email = "jeffko@microsoft.com" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "Flask>=3.0.0,<4.0.0"
+]
+
+[project.scripts]
+# Short names for uv run console / uv run web
+console = "real_time_voice.voice_console:main"
+web = "real_time_voice.flask_app:main"
+# (Optional backward compatibility; remove if not needed)
+# real-time-voice = "real_time_voice.voice_console:main"
+# real-time-voice-web = "real_time_voice.flask_app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
