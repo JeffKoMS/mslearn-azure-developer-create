@@ -45,7 +45,10 @@ from azure.ai.voicelive.models import (
 )
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# Default to ERROR level to reduce console noise for end users. All user-facing informational
+# messages already use print() so we only surface warnings/errors from the logger unless
+# the VOICE_LIVE_VERBOSE environment variable is set (handled later) to elevate to DEBUG.
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", force=True)
 logger = logging.getLogger(__name__)
 
 
