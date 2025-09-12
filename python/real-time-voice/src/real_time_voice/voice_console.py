@@ -2,7 +2,6 @@ import os
 import sys
 import asyncio
 import base64
-import argparse
 import signal
 import threading
 import queue
@@ -10,7 +9,7 @@ from azure.ai.voicelive.models import ServerEventType
 from typing import Union, Optional, TYPE_CHECKING, cast
 from concurrent.futures import ThreadPoolExecutor
 import logging
-import socket
+
 
 # Audio processing imports
 try:
@@ -29,7 +28,7 @@ except ImportError:
 
 # Azure VoiceLive SDK imports
 from azure.core.credentials import AzureKeyCredential, TokenCredential
-from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential
+from azure.identity import DefaultAzureCredential
 
 from azure.ai.voicelive.aio import connect
 
@@ -457,104 +456,48 @@ class BasicVoiceAssistant:
             logger.debug(f"Unhandled event type: {event.type}")
 
 
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Basic Voice Assistant using Azure VoiceLive SDK",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    parser.add_argument(
-        "--api-key",
-        help="Azure VoiceLive API key. If not provided, will use AZURE_VOICELIVE_API_KEY environment variable.",
-        type=str,
-        default=os.environ.get("AZURE_VOICELIVE_API_KEY"),
-    )
-
-    parser.add_argument(
-        "--endpoint",
-        help="Azure VoiceLive endpoint",
-        type=str,
-        default=os.environ.get("AZURE_VOICELIVE_ENDPOINT", "wss://api.voicelive.com/v1"),
-    )
-
-    parser.add_argument(
-        "--model",
-        help="VoiceLive model to use",
-        type=str,
-        default=os.environ.get("VOICELIVE_MODEL", "gpt-4o-realtime-preview"),
-    )
-
-    parser.add_argument(
-        "--voice",
-        help="Voice to use for the assistant",
-        type=str,
-        default=os.environ.get("VOICELIVE_VOICE", "en-US-AvaNeural"),
-        choices=[
-            "alloy",
-            "echo",
-            "fable",
-            "onyx",
-            "nova",
-            "shimmer",
-            "en-US-AvaNeural",
-            "en-US-JennyNeural",
-            "en-US-GuyNeural",
-        ],
-    )
-
-    parser.add_argument(
-        "--instructions",
-        help="System instructions for the AI assistant",
-        type=str,
-        default=os.environ.get(
-            "VOICELIVE_INSTRUCTIONS",
-            "You are a helpful AI assistant. Respond naturally and conversationally. "
-            "Keep your responses concise but engaging.",
-        ),
-    )
-
-    parser.add_argument(
-        "--use-token-credential", help="Use Azure token credential instead of API key", action="store_true"
-    )
-
-    parser.add_argument("--verbose", help="Enable verbose logging", action="store_true")
-
-    return parser.parse_args()
+## Removed command-line argument parsing; configuration now sourced from environment variables (.env supported)
 
 
 async def main():
     """Main function."""
-    args = parse_arguments()
+    # Load configuration from environment
+    api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
+    endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
+    model = os.environ.get("VOICE_LIVE_MODEL")
+    voice = os.environ.get("VOICE_LIVE_VOICE")
+    instructions = os.environ.get("VOICE_LIVE_INSTRUCTIONS")
+    verbose = os.environ.get("VOICE_LIVE_VERBOSE")
 
-    # Set logging level
-    if args.verbose:
+    if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+        logger.debug("Verbose logging enabled via VOICELIVE_VERBOSE env var")
 
-    # Validate credentials
-    if not args.api_key and not args.use_token_credential:
-        print("❌ Error: No authentication provided")
-        print("Please provide an API key using --api-key or set AZURE_VOICELIVE_API_KEY environment variable,")
-        print("or use --use-token-credential for Azure authentication.")
-        sys.exit(1)
+    # Decide credential strategy: prefer API key; fallback to DefaultAzureCredential
+    if api_key:
+        credential: Union[AzureKeyCredential, TokenCredential] = AzureKeyCredential(api_key)
+        auth_mode = "api-key"
+    else:
+        credential = DefaultAzureCredential()
+        auth_mode = "default-azure-credential"
+
+    logger.info(
+        "Starting Voice Assistant with config | endpoint=%s model=%s voice=%s auth=%s",
+        endpoint,
+        model,
+        voice,
+        auth_mode,
+    )
 
     try:
         # Create client with appropriate credential
-        credential: Union[AzureKeyCredential, TokenCredential]
-        if args.use_token_credential:
-            credential = InteractiveBrowserCredential()  # or DefaultAzureCredential() if needed
-            logger.info("Using Azure token credential")
-        else:
-            credential = AzureKeyCredential(args.api_key)
-            logger.info("Using API key credential")
-
         # Create and start voice assistant
         assistant = BasicVoiceAssistant(
-            endpoint=args.endpoint,
+            endpoint=endpoint,
             credential=credential,
-            model=args.model,
-            voice=args.voice,
-            instructions=args.instructions,
+            model=model,
+            voice=voice,
+            instructions=instructions,
         )
 
         # Setup signal handlers for graceful shutdown
