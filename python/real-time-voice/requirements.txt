@@ -29,7 +29,6 @@ cffi==1.17.1
     # via
     #   real-time-voice (pyproject.toml)
     #   cryptography
-    #   sounddevice
 charset-normalizer==3.4.3
     # via requests
 click==8.1.8
@@ -73,14 +72,10 @@ multidict==6.6.4
     # via
     #   aiohttp
     #   yarl
-numpy==2.2.5
-    # via real-time-voice (pyproject.toml)
 propcache==0.3.2
     # via
     #   aiohttp
     #   yarl
-pyaudio==0.2.14
-    # via real-time-voice (pyproject.toml)
 pycparser==2.22
     # via
     #   real-time-voice (pyproject.toml)
@@ -96,8 +91,6 @@ requests==2.32.3
     #   msal
 six==1.17.0
     # via azure-core
-sounddevice==0.5.1
-    # via real-time-voice (pyproject.toml)
 typing-extensions==4.13.2
     # via
     #   real-time-voice (pyproject.toml)
@@ -110,8 +103,6 @@ urllib3==2.4.0
     # via
     #   real-time-voice (pyproject.toml)
     #   requests
-websocket-client==1.8.0
-    # via real-time-voice (pyproject.toml)
 werkzeug==3.1.3
     # via flask
 yarl==1.20.1
