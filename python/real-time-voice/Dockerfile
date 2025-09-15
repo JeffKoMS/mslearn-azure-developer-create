@@ -24,6 +24,9 @@ RUN pip install --upgrade pip setuptools wheel \
 # Copy app sources
 COPY . /app
 
+# Ensure src/ is on Python path for src-layout project without pip install .
+ENV PYTHONPATH="/app/src:${PYTHONPATH}"
+
 ENV PORT=5000
 EXPOSE 5000
 
