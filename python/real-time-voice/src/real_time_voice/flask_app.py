@@ -74,6 +74,25 @@ logger = logging.getLogger("real_time_voice.flask")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s in %(name)s: %(message)s")
 
+# ---------------------------------------------------------------------------
+# Suppress noisy 200 OK HTTP access logs (Werkzeug dev server) while keeping
+# non-200 responses and internal status/log broadcasts. 
+# ---------------------------------------------------------------------------
+class _SuppressHTTP200(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401 - simple filter
+        msg = record.getMessage()
+        # Typical pattern: '127.0.0.1 - - [timestamp] "POST /audio-chunk HTTP/1.1" 200 -'
+        # We suppress any line that clearly denotes an HTTP 200 access log.
+        if '" 200 ' in msg:
+            return False
+        return True
+
+werkzeug_logger = logging.getLogger("werkzeug")
+# Avoid stacking multiple identical filters if code reloaded (Flask debug reload)
+already = any(isinstance(f, _SuppressHTTP200) for f in getattr(werkzeug_logger, 'filters', []))
+if not already:
+    werkzeug_logger.addFilter(_SuppressHTTP200())
+
 
 def _validate_env() -> Tuple[bool, str]:
     """Validate required environment variables before starting assistant."""
