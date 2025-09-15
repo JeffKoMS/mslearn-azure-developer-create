@@ -62,3 +62,17 @@ Then open http://127.0.0.1:5000/ in your browser.
 * Package now includes an `__init__.py` so build tooling (hatchling) can auto-detect the package; it exposes `__version__`.
 * For production deployments consider using a production WSGI/ASGI server (e.g. gunicorn + gevent or uvicorn with an ASGI framework) and disabling `debug=True`.
 
+### Authentication
+
+This project now exclusively uses `DefaultAzureCredential` from `azure-identity` for authenticating with the Voice Live service. The environment variable `AZURE_VOICE_LIVE_API_KEY` has been removed. Ensure one of the supported credential sources is available in your environment (e.g. Azure CLI login, Managed Identity, Visual Studio Code Azure sign-in, environment variables for a service principal, etc.).
+
+Required environment variables at runtime:
+
+* `VOICE_LIVE_MODEL`
+* `VOICE_LIVE_VOICE`
+* (Optional) `AZURE_VOICE_LIVE_ENDPOINT` – defaults to `wss://api.voicelive.com/v1`
+* (Optional) `VOICE_LIVE_INSTRUCTIONS`
+* (Optional) `VOICE_LIVE_VERBOSE` to enable debug logging
+
+If required variables are missing the application will exit (CLI) or return an error state (web).
+

@@ -87,19 +87,16 @@ def _validate_env() -> Tuple[bool, str]:
 
     model = os.environ.get("VOICE_LIVE_MODEL")
     voice = os.environ.get("VOICE_LIVE_VOICE")
-    api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
 
     missing = []
     if not model:
         missing.append("VOICE_LIVE_MODEL")
     if not voice:
         missing.append("VOICE_LIVE_VOICE")
-    if not api_key:
-        # Not strictly required if DefaultAzureCredential works, but warn user
-        logger.info("AZURE_VOICE_LIVE_API_KEY not set; will attempt DefaultAzureCredential")
-
     if missing:
         return False, f"Missing required environment variables: {', '.join(missing)}"
+    # Authentication now always uses DefaultAzureCredential chain
+    logger.debug("Using DefaultAzureCredential for authentication (no API key path).")
     return True, "ok"
 
 
@@ -240,7 +237,6 @@ def _run_assistant_bg():
         from azure.core.credentials import AzureKeyCredential, TokenCredential  # type: ignore
         from azure.identity import DefaultAzureCredential  # type: ignore
 
-        api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
         endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
         model = os.environ.get("VOICE_LIVE_MODEL")
         voice = os.environ.get("VOICE_LIVE_VOICE")
@@ -250,10 +246,8 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        if api_key:
-            credential: Union[TokenCredential, AzureKeyCredential] = AzureKeyCredential(api_key)
-        else:
-            credential = DefaultAzureCredential()
+        # API key support removed; always use DefaultAzureCredential
+        credential: Union[TokenCredential, AzureKeyCredential] = DefaultAzureCredential()  # type: ignore[assignment]
 
         def cb(state, message):
             set_state(state, message)

@@ -465,7 +465,6 @@ class BasicVoiceAssistant:
 async def main():
     """Main function."""
     # Load configuration from environment
-    api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
     endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
     model = os.environ.get("VOICE_LIVE_MODEL")
     voice = os.environ.get("VOICE_LIVE_VOICE")
@@ -476,13 +475,24 @@ async def main():
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Verbose logging enabled via VOICELIVE_VERBOSE env var")
 
-    # Decide credential strategy: prefer API key; fallback to DefaultAzureCredential
-    if api_key:
-        credential: Union[AzureKeyCredential, TokenCredential] = AzureKeyCredential(api_key)
-        auth_mode = "api-key"
-    else:
-        credential = DefaultAzureCredential()
-        auth_mode = "default-azure-credential"
+    # Authentication now fixed to DefaultAzureCredential (API key removed)
+    credential: Union[AzureKeyCredential, TokenCredential] = DefaultAzureCredential()  # type: ignore[assignment]
+    auth_mode = "default-azure-credential"
+
+    # Basic required env validation
+    missing = []
+    if not model:
+        missing.append("VOICE_LIVE_MODEL")
+    if not voice:
+        missing.append("VOICE_LIVE_VOICE")
+    if missing:
+        logger.error("Missing required environment variables: %s", ", ".join(missing))
+        raise SystemExit(1)
+    if not instructions:
+        instructions = "You are a helpful voice assistant."
+    # At this point model and voice are not None due to validation above; narrow types for type checker
+    model = cast(str, model)
+    voice = cast(str, voice)
 
     logger.info(
         "Starting Voice Assistant with config | endpoint=%s model=%s voice=%s auth=%s",
