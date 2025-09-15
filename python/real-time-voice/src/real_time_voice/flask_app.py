@@ -167,7 +167,7 @@ class BasicVoiceAssistant:
                     voice=voice_cfg,
                     input_audio_format=AudioFormat.PCM16,
                     output_audio_format=AudioFormat.PCM16,
-                    turn_detection=ServerVad(threshold=0.5, prefix_padding_ms=300, silence_duration_ms=500),
+                    turn_detection=ServerVad(threshold=0.2, prefix_padding_ms=200, silence_duration_ms=300),
                 )
                 await conn.session.update(session=session_config)
 
