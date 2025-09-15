@@ -391,7 +391,12 @@ def index():
 
 def main() -> None:
     # Basic dev server; in production consider a WSGI/ASGI server like gunicorn or uvicorn.
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    import os
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", os.environ.get("FLASK_RUN_PORT", "5000")))
+    debug_env = os.environ.get("FLASK_DEBUG", os.environ.get("DEBUG", "0"))
+    debug = bool(int(debug_env)) if str(debug_env).isdigit() else debug_env.lower() in ("1", "true", "yes")
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":  # pragma: no cover
