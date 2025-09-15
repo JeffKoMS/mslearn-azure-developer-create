@@ -13,12 +13,6 @@ import base64
 
 from flask import Flask, render_template, jsonify, Response, request
 
-###############################################################################
-# NOTE: This file now contains a self-contained implementation of the voice
-# assistant (no dependency on voice_console.py). It embeds a minimal
-# AudioProcessor and BasicVoiceAssistant suitable for the web demo.
-###############################################################################
-
 app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
 
 # ------------------------------
@@ -100,20 +94,6 @@ def _validate_env() -> Tuple[bool, str]:
     return True, "ok"
 
 
-class AudioProcessor:  # Retained for interface clarity; no-op since browser handles audio
-    async def start_capture(self):  # pragma: no cover - no-op
-        return
-    async def stop_capture(self):  # pragma: no cover - no-op
-        return
-    async def start_playback(self):  # pragma: no cover - no-op
-        return
-    async def queue_audio(self, data: bytes):  # pragma: no cover - no-op
-        return
-    async def stop_playback(self):  # pragma: no cover - no-op
-        return
-    async def cleanup(self):  # pragma: no cover - no-op
-        return
-
 
 class BasicVoiceAssistant:
     """Minimal assistant implementation for VoiceLive API."""
@@ -133,7 +113,6 @@ class BasicVoiceAssistant:
         self.voice = voice
         self.instructions = instructions
         self.connection = None
-        self.audio: Optional[AudioProcessor] = AudioProcessor()
         self._stopping = False
         self.state_callback = state_callback or (lambda *_: None)
 
