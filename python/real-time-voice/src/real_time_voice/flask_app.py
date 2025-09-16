@@ -108,8 +108,8 @@ def _validate_env() -> Tuple[bool, str]:
         missing.append("VOICE_LIVE_VOICE")
     if missing:
         return False, f"Missing required environment variables: {', '.join(missing)}"
-    # Authentication now always uses DefaultAzureCredential chain
-    logger.debug("Using DefaultAzureCredential for authentication (no API key path).")
+    # Authentication will use InteractiveBrowserCredential (user sign-in) as requested
+    logger.debug("Using InteractiveBrowserCredential for authentication (no API key path).")
     return True, "ok"
 
 
@@ -233,7 +233,7 @@ def _run_assistant_bg():
     try:
         import os
         from azure.core.credentials import AzureKeyCredential, TokenCredential  # type: ignore
-        from azure.identity import DefaultAzureCredential  # type: ignore
+        from azure.identity import InteractiveBrowserCredential  # type: ignore
 
         endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
         model = os.environ.get("VOICE_LIVE_MODEL")
@@ -244,8 +244,8 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        # API key support removed; always use DefaultAzureCredential
-        credential: Union[TokenCredential, AzureKeyCredential] = DefaultAzureCredential()  # type: ignore[assignment]
+        # Use InteractiveBrowserCredential to prompt the user to sign in
+        credential: Union[TokenCredential, AzureKeyCredential] = InteractiveBrowserCredential()  # type: ignore[assignment]
 
         def cb(state, message):
             set_state(state, message)

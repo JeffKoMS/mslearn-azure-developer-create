@@ -17,9 +17,9 @@ RUN apt-get update \
 
 # Install Python dependencies
 COPY requirements.txt ./
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install -r requirements.txt \
-    && pip install gunicorn
+RUN pip install --root-user-action=ignore --upgrade pip setuptools wheel \
+    && pip install --root-user-action=ignore -r requirements.txt \
+    && pip install --root-user-action=ignore gunicorn
 
 # Copy app sources
 COPY . /app
