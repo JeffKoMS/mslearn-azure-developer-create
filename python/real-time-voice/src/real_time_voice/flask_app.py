@@ -259,6 +259,31 @@ def _run_assistant_bg():
             from azure.core.exceptions import ClientAuthenticationError  # type: ignore
             token = credential.get_token("https://cognitiveservices.azure.com/.default")
             logger.info("Successfully acquired initial access token (exp=%s)", getattr(token, 'expires_on', 'n/a'))
+            # Safely decode and log a compact preview of the token's claims (do not log the token itself)
+            try:
+                # token.token is the raw JWT; we only decode the payload without verifying signature
+                raw = getattr(token, 'token', None)
+                if raw and isinstance(raw, str):
+                    # JWT parts are base64url encoded: header.payload.signature
+                    parts = raw.split('.')
+                    if len(parts) >= 2:
+                        import base64 as _base64, json as _json
+
+                        def _b64url_decode(s: str) -> bytes:
+                            s = s + '=' * ((4 - len(s) % 4) % 4)
+                            return _base64.urlsafe_b64decode(s)
+
+                        try:
+                            payload = _b64url_decode(parts[1])
+                            claims = _json.loads(payload.decode('utf-8', errors='ignore'))
+                            # Select a few key claims to preview
+                            preview = {k: claims.get(k) for k in ('oid', 'appid', 'azp', 'sub', 'scp') if k in claims}
+                            logger.info("Token claims preview: %s", preview)
+                        except Exception:
+                            logger.debug("Failed to decode token claims for preview", exc_info=True)
+            except Exception:
+                # Never fail startup if claims decoding diagnostics fail
+                logger.debug("Token claims preview step failed (continuing)", exc_info=True)
         except Exception as auth_ex:
             logger.warning("Initial token acquisition failed (continuing, may still succeed later): %s", auth_ex)
 
