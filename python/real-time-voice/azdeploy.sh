@@ -1,17 +1,17 @@
 #!/bin/bash
 rg=rg-exercises
 location=eastus2
-acr_name=acrrealtime9999 #acrrealtime$RANDOM
+acr_name=acrrealtime99999 #acrrealtime$RANDOM
 image="rt-voice"
 tag="v1"
-dns_label=realtime-test-159785 #realtime-voice-$RANDOM
+dns_label=realtime-test-159786 #realtime-voice-$RANDOM
 openai_resource_name="rtv-exercise-resource"
 aci_name="aci-realtime"
 uami_name="aci-uami"
 
 # Create ACR and build image from Dockerfile
-#az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
-#az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
+az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
+az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
 
 # List image in ACR to verify deployment
 clear
@@ -23,13 +23,7 @@ clear
 
 echo "Creating ACI and pulling image from ACR."
 
-# Set environment variables to pass to container
-env_vars=(
-    AZURE_VOICE_LIVE_ENDPOINT="https://${openai_resource_name}.cognitiveservices.azure.com/"
-    VOICE_LIVE_MODEL="gpt-realtime"
-    VOICE_LIVE_VOICE="alloy"
-    VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant. Respond naturally and conversationally. Keep your responses concise but engaging."
-)
+
 
 
 # Retrieve name/password from ACR to allow ACI to access the container image
@@ -44,7 +38,7 @@ if ! az identity show -g $rg -n $uami_name --query id -o tsv &>/dev/null; then
     az identity create -g $rg -n $uami_name --location $location
 fi
 
-## uami_client_id=$(az identity show -g $rg -n $uami_name --query clientId -o tsv | tr -d '\r')
+uami_client_id=$(az identity show -g $rg -n $uami_name --query clientId -o tsv | tr -d '\r')
 uami_resource_id=$(az identity show -g $rg -n $uami_name --query id -o tsv | tr -d '\r')
 uami_principal_id=$(az identity show -g $rg -n $uami_name --query principalId -o tsv | tr -d '\r')
 
@@ -78,6 +72,15 @@ else
     echo "Proceeding to create the ACI. Press any key to continue..."
     read -n 1 -s -r
 fi
+
+# Set environment variables to pass to container
+env_vars=(
+    AZURE_VOICE_LIVE_ENDPOINT="https://${openai_resource_name}.cognitiveservices.azure.com/"
+    AZURE_CLIENT_ID="$uami_client_id"
+    VOICE_LIVE_MODEL="gpt-realtime"
+    VOICE_LIVE_VOICE="alloy"
+    VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant. Respond naturally and conversationally. Keep your responses concise but engaging."
+)
 
 # Create the ACI instance with the container using the UAMI
 az container create -g $rg -n $aci_name \

@@ -247,12 +247,22 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        # Acquire credential via the default chain. If running in ACI with managed identity, optionally
-        # set AZURE_CLIENT_ID for user-assigned identity selection. Locally it can fall back to Azure CLI / Visual Studio sign-in.
-        credential: Union[TokenCredential, AzureKeyCredential] = DefaultAzureCredential(  # type: ignore[assignment]
-            exclude_interactive_browser_credential=True,
-            # Interactive browser excluded to avoid unexpected prompts inside container.
-        )
+        # Acquire credential. If running in ACI with a user-assigned managed identity, the
+        # container should be given the UAMI and the UAMI's client id passed as AZURE_CLIENT_ID
+        # (or AZURE_MANAGED_IDENTITY_CLIENT_ID). If provided, use ManagedIdentityCredential for that client id;
+        # otherwise fall back to DefaultAzureCredential which will use environment/CLI/managed identity chain.
+        from azure.identity import ManagedIdentityCredential, DefaultAzureCredential  # type: ignore
+
+        uami_client_id = os.environ.get("AZURE_CLIENT_ID") or os.environ.get("AZURE_MANAGED_IDENTITY_CLIENT_ID")
+        if uami_client_id:
+            try:
+                credential = ManagedIdentityCredential(client_id=uami_client_id)  # type: ignore[assignment]
+                logger.info("Using ManagedIdentityCredential with client_id=%s (UAMI)", uami_client_id)
+            except Exception:
+                logger.exception("Failed to construct ManagedIdentityCredential for client_id=%s; falling back to DefaultAzureCredential", uami_client_id)
+                credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)  # type: ignore[assignment]
+        else:
+            credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)  # type: ignore[assignment]
 
         # (Optional) attempt a proactive token fetch for diagnostics (won't crash if fails)
         try:  # pragma: no cover - best-effort token warm-up
