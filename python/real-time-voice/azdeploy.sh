@@ -1,10 +1,10 @@
 #!/bin/bash
 rg=rg-exercises
 location=eastus2
-acr_name=acrrealtime99999 #acrrealtime$RANDOM
+acr_name=acrrealtime1000000 #acrrealtime$RANDOM
 image="rt-voice"
 tag="v1"
-dns_label=realtime-test-159786 #realtime-voice-$RANDOM
+dns_label=realtime-test-159788 #realtime-voice-$RANDOM
 openai_resource_name="rtv-exercise-resource"
 aci_name="aci-realtime"
 uami_name="aci-uami"
@@ -21,10 +21,8 @@ echo "Verify image successfully deployed to ACR..."
 read -n 1 -s -r -p "Press any key to continue..."
 clear
 
-echo "Creating ACI and pulling image from ACR."
 
-
-
+echo "Creating user-assigned identity..."
 
 # Retrieve name/password from ACR to allow ACI to access the container image
 acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
@@ -68,33 +66,52 @@ done
 if [[ $assigned -ne 1 ]]; then
     echo "Role assignment not visible after wait. Press any key to continue (you can inspect and assign manually), or Ctrl-C to abort."
     read -n 1 -s -r
-else
-    echo "Proceeding to create the ACI. Press any key to continue..."
-    read -n 1 -s -r
 fi
 
-# Set environment variables to pass to container
+echo "Proceeding to deploy to Azure Container Apps (ACA). Press any key to continue..."
+read -n 1 -s -r
+
+# Create Log Analytics workspace (required by Container Apps)
+la_workspace="${acr_name}-log"
+az monitor log-analytics workspace create -g $rg -n $la_workspace --location $location
+
+# Create Container Apps environment
+aca_env="aca-env-${RANDOM}"
+az containerapp env create -g $rg -n $aca_env --location $location --log-analytics-workspace $la_workspace
+
+# Register ACR with the Container Apps environment (grant pull permissions via role assignment)
+acr_server=$acr_login_server
+echo "Granting acr pull role for Container Apps to ACR..."
+az role assignment create --assignee-principal-type ServicePrincipal --assignee $(az ad sp show --id "http://${acr_name}" --query objectId -o tsv 2>/dev/null || echo "") --role AcrPull --scope $(az acr show -n $acr_name -g $rg --query id -o tsv)
+
+# Deploy the Container App with system-assigned managed identity and ACR integration
+containerapp_name="rt-voice-app"
 env_vars=(
     AZURE_VOICE_LIVE_ENDPOINT="https://${openai_resource_name}.cognitiveservices.azure.com/"
-    AZURE_CLIENT_ID="$uami_client_id"
     VOICE_LIVE_MODEL="gpt-realtime"
     VOICE_LIVE_VOICE="alloy"
     VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant. Respond naturally and conversationally. Keep your responses concise but engaging."
 )
 
-# Create the ACI instance with the container using the UAMI
-az container create -g $rg -n $aci_name \
-    --image $acr_image \
-    --registry-login-server $acr_login_server \
-    --registry-username $acr_user \
-    --registry-password "$acr_pass" \
-    --assign-identity "$uami_resource_id" \
-    --ports 5000 \
-    --environment-variables "${env_vars[@]}"  \
-    --location $location \
-    --dns-name-label $dns_label \
-    --os-type Linux \
-    --cpu 1 \
-    --memory 1.5
+az containerapp create \
+  --name $containerapp_name \
+  --resource-group $rg \
+  --environment $aca_env \
+  --image $acr_image \
+  --ingress external \
+  --target-port 5000 \
+  --registry-server $acr_login_server \
+  --cpu 1 \
+  --memory 1.5Gi \
+  --environment-variables "${env_vars[@]}" \
+  --location $location \
+  --assign-identity system
 
-echo "deployment complete"
+echo "Container App deployed. Retrieving principal id for the app's managed identity..."
+app_principal_id=$(az containerapp show -g $rg -n $containerapp_name --query identity.principalId -o tsv)
+echo "App principalId: $app_principal_id"
+
+echo "Assigning 'Cognitive Services OpenAI User' role to the Container App managed identity on the OpenAI resource..."
+az role assignment create --assignee-object-id "$app_principal_id" --assignee-principal-type ServicePrincipal --role "Cognitive Services OpenAI User" --scope "$openai_scope" || true
+
+echo "Deployment complete. Use 'az containerapp show' and 'az containerapp logs' to inspect the app and logs."

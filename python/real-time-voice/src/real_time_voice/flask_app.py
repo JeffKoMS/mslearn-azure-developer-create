@@ -247,53 +247,17 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        # Acquire credential. If running in ACI with a user-assigned managed identity, the
-        # container should be given the UAMI and the UAMI's client id passed as AZURE_CLIENT_ID
-        # (or AZURE_MANAGED_IDENTITY_CLIENT_ID). If provided, use ManagedIdentityCredential for that client id;
-        # otherwise fall back to DefaultAzureCredential which will use environment/CLI/managed identity chain.
-        from azure.identity import ManagedIdentityCredential, DefaultAzureCredential  # type: ignore
+        # Acquire credential via DefaultAzureCredential. This keeps the app simple for students:
+        # locally it will use environment variables / Azure CLI; in Azure it will use the attached managed identity.
+        from azure.identity import DefaultAzureCredential  # type: ignore
 
-        uami_client_id = os.environ.get("AZURE_CLIENT_ID") or os.environ.get("AZURE_MANAGED_IDENTITY_CLIENT_ID")
-        if uami_client_id:
-            try:
-                credential = ManagedIdentityCredential(client_id=uami_client_id)  # type: ignore[assignment]
-                logger.info("Using ManagedIdentityCredential with client_id=%s (UAMI)", uami_client_id)
-            except Exception:
-                logger.exception("Failed to construct ManagedIdentityCredential for client_id=%s; falling back to DefaultAzureCredential", uami_client_id)
-                credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)  # type: ignore[assignment]
-        else:
-            credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)  # type: ignore[assignment]
+        credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)  # type: ignore[assignment]
+        logger.info("Using DefaultAzureCredential for authentication")
 
         # (Optional) attempt a proactive token fetch for diagnostics (won't crash if fails)
         try:  # pragma: no cover - best-effort token warm-up
-            from azure.core.exceptions import ClientAuthenticationError  # type: ignore
             token = credential.get_token("https://cognitiveservices.azure.com/.default")
             logger.info("Successfully acquired initial access token (exp=%s)", getattr(token, 'expires_on', 'n/a'))
-            # Safely decode and log a compact preview of the token's claims (do not log the token itself)
-            try:
-                # token.token is the raw JWT; we only decode the payload without verifying signature
-                raw = getattr(token, 'token', None)
-                if raw and isinstance(raw, str):
-                    # JWT parts are base64url encoded: header.payload.signature
-                    parts = raw.split('.')
-                    if len(parts) >= 2:
-                        import base64 as _base64, json as _json
-
-                        def _b64url_decode(s: str) -> bytes:
-                            s = s + '=' * ((4 - len(s) % 4) % 4)
-                            return _base64.urlsafe_b64decode(s)
-
-                        try:
-                            payload = _b64url_decode(parts[1])
-                            claims = _json.loads(payload.decode('utf-8', errors='ignore'))
-                            # Select a few key claims to preview
-                            preview = {k: claims.get(k) for k in ('oid', 'appid', 'azp', 'sub', 'scp') if k in claims}
-                            logger.info("Token claims preview: %s", preview)
-                        except Exception:
-                            logger.debug("Failed to decode token claims for preview", exc_info=True)
-            except Exception:
-                # Never fail startup if claims decoding diagnostics fail
-                logger.debug("Token claims preview step failed (continuing)", exc_info=True)
         except Exception as auth_ex:
             logger.warning("Initial token acquisition failed (continuing, may still succeed later): %s", auth_ex)
 
