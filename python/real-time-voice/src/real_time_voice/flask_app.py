@@ -108,8 +108,10 @@ def _validate_env() -> Tuple[bool, str]:
         missing.append("VOICE_LIVE_VOICE")
     if missing:
         return False, f"Missing required environment variables: {', '.join(missing)}"
-    # Authentication will use InteractiveBrowserCredential (user sign-in) as requested
-    logger.debug("Using InteractiveBrowserCredential for authentication (no API key path).")
+    # Authentication will use DefaultAzureCredential / Managed Identity.
+    # No API keys required; ensure the container / environment has either a user-assigned or system-assigned MI
+    # with proper RBAC to the Azure OpenAI (Voice Live) resource.
+    logger.debug("Auth: using DefaultAzureCredential / Managed Identity chain.")
     return True, "ok"
 
 
@@ -233,7 +235,8 @@ def _run_assistant_bg():
     try:
         import os
         from azure.core.credentials import AzureKeyCredential, TokenCredential  # type: ignore
-        from azure.identity import InteractiveBrowserCredential  # type: ignore
+        # Use DefaultAzureCredential so it works locally (env vars/CLI) and in Azure (Managed Identity)
+        from azure.identity import DefaultAzureCredential  # type: ignore
 
         endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
         model = os.environ.get("VOICE_LIVE_MODEL")
@@ -244,8 +247,20 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        # Use InteractiveBrowserCredential to prompt the user to sign in
-        credential: Union[TokenCredential, AzureKeyCredential] = InteractiveBrowserCredential()  # type: ignore[assignment]
+        # Acquire credential via the default chain. If running in ACI with managed identity, optionally
+        # set AZURE_CLIENT_ID for user-assigned identity selection. Locally it can fall back to Azure CLI / Visual Studio sign-in.
+        credential: Union[TokenCredential, AzureKeyCredential] = DefaultAzureCredential(  # type: ignore[assignment]
+            exclude_interactive_browser_credential=True,
+            # Interactive browser excluded to avoid unexpected prompts inside container.
+        )
+
+        # (Optional) attempt a proactive token fetch for diagnostics (won't crash if fails)
+        try:  # pragma: no cover - best-effort token warm-up
+            from azure.core.exceptions import ClientAuthenticationError  # type: ignore
+            token = credential.get_token("https://cognitiveservices.azure.com/.default")
+            logger.info("Successfully acquired initial access token (exp=%s)", getattr(token, 'expires_on', 'n/a'))
+        except Exception as auth_ex:
+            logger.warning("Initial token acquisition failed (continuing, may still succeed later): %s", auth_ex)
 
         def cb(state, message):
             set_state(state, message)
