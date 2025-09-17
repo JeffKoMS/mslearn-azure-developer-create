@@ -10,3 +10,5 @@ wheels/
 # Virtual environments
 .venv
 #azdeploy.sh
+drun.sh
+dbuild.sh
