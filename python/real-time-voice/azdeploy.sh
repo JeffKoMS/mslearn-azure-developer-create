@@ -1,39 +1,33 @@
 #!/bin/bash
 rg=rg-rtvexercise
 location=eastus2
-acr_name=acrrealtime1000004 #acrrealtime$RANDOM
+acr_name=acrrealtime105 #acrrealtime$RANDOM
 image="rt-voice"
 tag="v1"
-dns_label=realtime-test-159791 #realtime-voice-$RANDOM
-
 
 # Create ACR and build image from Dockerfile
-#az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
-#az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
-#
-## List image in ACR to verify deployment
+az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
+az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
+
+# List image in ACR to verify deployment
 #clear
-#az acr repository list --name $acr_name --output table
-#
-#echo "Verify image successfully deployed to ACR..."
-#read -n 1 -s -r -p "Press any key to continue..."
-#clear
+az acr repository list --name $acr_name --output table
 
+echo "Verify image successfully deployed to ACR..."
+read -n 1 -s -r -p "Press any key to continue..."
+clear
 
-
-# Retrieve name/password from ACR to allow ACI to access the container image
+# Retrieve name/password from ACR to allow App Service to access the container image
 acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
 acr_pass=$(az acr credential show -n $acr_name --query passwords[0].value -o tsv | tr -d '\r')
 acr_login_server=$(az acr show --name $acr_name --query "loginServer" --output tsv | tr -d '\r')
 acr_image=${acr_login_server}/${image}:${tag}
 
 
-echo "Proceeding to deploy to Azure Container Instances (ACI). Press any key to continue..."
-read -n 1 -s -r
+echo "Proceeding to deploy to Azure App service. Press any key to continue..."
+#read -n 1 -s -r
 
-echo "Creating Azure Container Instance"
-
-# Use the retrieved ACR credentials to allow ACI to pull the image.
+# Use the retrieved ACR credentials to allow AppSvc to pull the image.
 # Parse the .env file exists in the repo root, and bring values into the  script environment 
 if [ -f .env ]; then
     echo "Loading environment variables from .env"
@@ -60,7 +54,7 @@ if [ -f .env ]; then
     done < .env
 fi
 
-# Build env_vars using values from .env if present, otherwise fall back to defaults
+# Build env_vars using values from .env - one file to update
 env_vars=(
     AZURE_VOICE_LIVE_ENDPOINT="${AZURE_VOICE_LIVE_ENDPOINT}"
     AZURE_VOICE_LIVE_API_KEY="${AZURE_VOICE_LIVE_API_KEY}"
@@ -69,17 +63,9 @@ env_vars=(
     VOICE_LIVE_INSTRUCTIONS="${VOICE_LIVE_INSTRUCTIONS}"
 )
 
-    # Echo the env vars that will be supplied to the container for visibility
-    echo "Environment variables to be passed to App Service:"
-    for kv in "${env_vars[@]}"; do
-        echo "  $kv"
-    done
-read -n 1 -s -r -p "Press any key to continue..."
-
-
-echo
+echo ""
 echo "Deploying container to Azure App Service (Linux). Press any key to continue or Ctrl-C to skip..."
-read -n 1 -s -r
+#read -n 1 -s -r
 
 # Names (change if you want deterministic values)
 appsvc_plan="rtv-app-plan"
