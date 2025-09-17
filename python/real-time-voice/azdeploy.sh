@@ -1,7 +1,7 @@
 #!/bin/bash
-rg=rg-exercises
+rg=rg-rtvexercise
 location=eastus2
-acr_name=acrrealtime1000002 #acrrealtime$RANDOM
+acr_name=acrrealtime1000003 #acrrealtime$RANDOM
 image="rt-voice"
 tag="v1"
 dns_label=realtime-test-159790 #realtime-voice-$RANDOM
@@ -10,16 +10,16 @@ aci_name="aci-realtime"
 uami_name="aci-uami"
 
 # Create ACR and build image from Dockerfile
-#az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
-#az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
+az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
+az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
 
 # List image in ACR to verify deployment
-#clear
-#az acr repository list --name $acr_name --output table
-#
-#echo "Verify image successfully deployed to ACR..."
-#read -n 1 -s -r -p "Press any key to continue..."
-#clear
+clear
+az acr repository list --name $acr_name --output table
+
+echo "Verify image successfully deployed to ACR..."
+read -n 1 -s -r -p "Press any key to continue..."
+clear
 #
 #
 echo "Creating user-assigned identity..."
