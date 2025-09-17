@@ -10,6 +10,7 @@ from typing import Optional, Tuple, Union, cast, List, Dict, Any
 import queue
 import json
 import base64
+from aiohttp import web
 
 from flask import Flask, render_template, jsonify, Response, request
 
@@ -29,6 +30,9 @@ assistant_thread: Optional[threading.Thread] = None
 assistant_instance = None  # Populated with a running assistant instance
 assistant_loop: Optional[asyncio.AbstractEventLoop] = None
 shutdown_requested = False
+ws_server_thread: Optional[threading.Thread] = None
+WS_SERVER_HOST = '0.0.0.0'
+WS_SERVER_PORT = 8765
 
 # SSE client management: each client owns a queue we push events into
 _sse_clients: List["queue.Queue[str]"] = []
@@ -46,6 +50,66 @@ def _broadcast(event: Dict[str, Any]):
                 dead.append(q)
         for d in dead:
             _sse_clients.remove(d)
+
+
+def _start_ws_server(host: str = WS_SERVER_HOST, port: int = WS_SERVER_PORT):
+    """Run a tiny aiohttp websocket server that accepts binary audio frames.
+
+    Each binary message is treated as PCM16 little-endian bytes and will be
+    base64-encoded and forwarded to the assistant via assistant_instance.append_audio.
+    """
+    async def ws_handler(request):
+        ws = web.WebSocketResponse(max_msg_size=10 * 1024 * 1024)
+        await ws.prepare(request)
+        try:
+            async for msg in ws:
+                if msg.type == web.WSMsgType.BINARY:
+                    data = msg.data  # bytes
+                    try:
+                        b64 = base64.b64encode(data).decode('utf-8')
+                        inst = assistant_instance
+                        loop = assistant_loop
+                        if inst and loop:
+                            # schedule append on the assistant loop for thread-safety
+                            try:
+                                asyncio.run_coroutine_threadsafe(inst.append_audio(b64), loop)
+                            except Exception:
+                                pass
+                    except Exception:
+                        # ignore malformed frames
+                        pass
+                elif msg.type == web.WSMsgType.ERROR:
+                    break
+        finally:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        return ws
+
+    async def run_app():
+        app = web.Application()
+        app.router.add_route('GET', '/ws-audio', ws_handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, host, port)
+        await site.start()
+        # keep running until cancelled
+        while True:
+            await asyncio.sleep(3600)
+
+    # Run the aiohttp server in its own event loop/thread
+    def _thread_target():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(run_app())
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_thread_target, daemon=True)
+    t.start()
+    return t
 
 
 def set_state(state: str, message: str, *, error: str | None = None):
@@ -135,6 +199,9 @@ class BasicVoiceAssistant:
         self.voice = voice
         self.instructions = instructions
         self.connection = None
+        # When True, server will suppress broadcasting RESPONSE_AUDIO_DELTA events
+        # for the current response because an interrupt/cancel was requested.
+        self._response_cancelled = False
         self._stopping = False
         self.state_callback = state_callback or (lambda *_: None)
 
@@ -157,6 +224,8 @@ class BasicVoiceAssistant:
                 connection_options={"max_msg_size": 10 * 1024 * 1024, "heartbeat": 20, "timeout": 20},
             ) as conn:
                 self.connection = conn
+                # Reset cancellation flag at the start of a new connection/session
+                self._response_cancelled = False
 
                 # Determine voice config
                 if self.voice.startswith("en-") or "-" in self.voice:
@@ -170,7 +239,7 @@ class BasicVoiceAssistant:
                     voice=voice_cfg,
                     input_audio_format=AudioFormat.PCM16,
                     output_audio_format=AudioFormat.PCM16,
-                    turn_detection=ServerVad(threshold=0.2, prefix_padding_ms=200, silence_duration_ms=300),
+                    turn_detection=ServerVad(threshold=0.5, prefix_padding_ms=300, silence_duration_ms=500),
                 )
                 await conn.session.update(session=session_config)
 
@@ -188,20 +257,40 @@ class BasicVoiceAssistant:
                     elif et == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
                         self.state_callback("listening", "Listening… speak now")
                         try:
-                            await conn.response.cancel()
-                        except Exception:
+                            # Always stop any playing assistant audio when user starts speaking
+                            _broadcast({"type": "control", "action": "stop_playback"})
+                            
+                            # Only cancel ongoing responses if assistant is actually responding
+                            # This prevents canceling during normal conversation start (ready state)
+                            current_state = assistant_state.get("state")
+                            if current_state in {"assistant_speaking", "processing"}:
+                                self._response_cancelled = True
+                                await conn.response.cancel()
+                                _broadcast({"type": "log", "level": "debug", "msg": f"Interrupted assistant during {current_state}"})
+                            else:
+                                _broadcast({"type": "log", "level": "debug", "msg": f"User speaking during {current_state} - no cancellation needed"})
+                        except Exception as e:
+                            _broadcast({"type": "log", "level": "debug", "msg": f"Exception in speech started handler: {e}"})
                             pass
                     elif et == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:
                         self.state_callback("processing", "Processing your input…")
                     elif et == ServerEventType.RESPONSE_AUDIO_DELTA:  # type: ignore[attr-defined]
+                        # If this response has been cancelled, suppress streaming the audio deltas
+                        if self._response_cancelled:
+                            # Skip broadcasting any further audio deltas for this interrupted response
+                            continue
                         if assistant_state.get("state") != "assistant_speaking":
                             self.state_callback("assistant_speaking", "Assistant speaking…")
                         data = getattr(event, "delta", None)
                         if data:
                             _broadcast({"type": "audio", "audio": base64.b64encode(data).decode("utf-8")})
                     elif et == ServerEventType.RESPONSE_AUDIO_DONE:
+                        # Response finished — clear any cancellation marker so new responses can stream
+                        self._response_cancelled = False
                         self.state_callback("ready", "Assistant finished. You can speak again.")
                     elif et == ServerEventType.RESPONSE_DONE:
+                        # Clear cancellation marker at end of response
+                        self._response_cancelled = False
                         if assistant_state.get("state") not in {"error", "ready", "listening"}:
                             self.state_callback("ready", "Assistant ready for next input.")
                     elif et == ServerEventType.ERROR:  # type: ignore[attr-defined]
@@ -301,6 +390,13 @@ def start_session():
 
     assistant_thread = threading.Thread(target=_run_assistant_bg, daemon=True)
     assistant_thread.start()
+    # Ensure websocket server for low-latency audio streaming is running
+    global ws_server_thread
+    if not ws_server_thread:
+        try:
+            ws_server_thread = _start_ws_server()
+        except Exception:
+            pass
     # Give the thread a brief moment to progress
     time.sleep(0.1)
     return jsonify({"started": True, "status": assistant_state})
@@ -314,6 +410,66 @@ def stop_session():
     assistant_instance.request_stop()
     set_state("stopped", "Stopping session…")
     return jsonify({"stopped": True})
+
+
+@app.post("/interrupt")
+def interrupt():
+    """Request an interruption of the current assistant response.
+
+    Attempt to cancel the active response on the assistant connection. If the
+    SDK doesn't expose a cancel method, fall back to requesting a stop on the
+    assistant instance.
+    """
+    global assistant_instance, assistant_loop
+    if not assistant_instance or not assistant_loop:
+        return jsonify({"interrupted": False, "reason": "No active session"}), 400
+    try:
+        # Mark response cancelled on the assistant instance immediately so the
+        # event loop will suppress broadcasting further RESPONSE_AUDIO_DELTA events
+        try:
+            if assistant_instance:
+                assistant_instance._response_cancelled = True
+        except Exception:
+            pass
+
+        # Immediately instruct connected clients to stop any pending playback
+        _broadcast({"type": "log", "level": "debug", "msg": f"Interrupt requested: broadcasting stop_playback at {time.time()}"})
+        _broadcast({"type": "control", "action": "stop_playback"})
+
+        # Also, stop assistant playback on the server-side audio processor (if present)
+        try:
+            ap = getattr(assistant_instance, 'connection', None)
+            # The assistant_instance in this design doesn't own the audio processor when
+            # running in the flask app variant; instead we attempt to stop playback via
+            # any audio processor attached to assistant_instance (if available).
+            ap_obj = getattr(assistant_instance, 'audio_processor', None)
+            if ap_obj and hasattr(ap_obj, 'stop_playback') and assistant_loop:
+                try:
+                    # Schedule stop_playback to run promptly on the assistant loop
+                    asyncio.run_coroutine_threadsafe(ap_obj.stop_playback(), assistant_loop)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Schedule the SDK-level cancel immediately on the assistant loop for low latency
+        try:
+            conn = getattr(assistant_instance, "connection", None)
+            resp = getattr(conn, "response", None) if conn else None
+            if resp and hasattr(resp, "cancel") and assistant_loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(resp.cancel(), assistant_loop)
+                    _broadcast({"type": "log", "level": "info", "msg": "Interrupt scheduled (cancel)"})
+                except Exception as e:
+                    _broadcast({"type": "log", "level": "error", "msg": f"Failed to schedule cancel(): {e}"})
+            else:
+                _broadcast({"type": "log", "level": "warn", "msg": "No response.cancel() available; cannot perform graceful interrupt via SDK."})
+        except Exception as e:
+            _broadcast({"type": "log", "level": "error", "msg": f"Interrupt handler exception: {e}"})
+
+        return jsonify({"interrupted": True})
+    except Exception as e:
+        return jsonify({"interrupted": False, "reason": str(e)}), 500
 
 
 @app.post("/audio-chunk")
