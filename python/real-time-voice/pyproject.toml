@@ -21,11 +21,13 @@ dependencies = [
     "urllib3==2.4.0",
     "azure-ai-voicelive==1.0.0b2",
     "Flask>=3.0.0,<4.0.0",
+    "pyaudio>=0.2.14",
 ]
 
 [project.scripts]
-# Short names for uv run web
+# Short names for uv run 
 web = "real_time_voice.flask_app:main"
+console = "real_time_voice.voice_console:main"
 
 [build-system]
 requires = ["hatchling"]

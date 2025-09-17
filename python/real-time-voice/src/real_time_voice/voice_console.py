@@ -462,8 +462,15 @@ class BasicVoiceAssistant:
 ## Removed command-line argument parsing; configuration now sourced from environment variables (.env supported)
 
 
-async def main():
-    """Main function."""
+async def main_async():
+    """Main coroutine function.
+
+    Renamed from `main` to `main_async` so we can expose a synchronous
+    `main()` wrapper. Some packaging entry points call `main` directly as a
+    normal function; if `main` is an async function that returns a coroutine
+    object, that can produce the "coroutine ... was never awaited" runtime
+    warning. The synchronous `main()` below calls `asyncio.run(main_async())`.
+    """
     # Load configuration from environment
     endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
     model = os.environ.get("VOICE_LIVE_MODEL")
@@ -532,14 +539,23 @@ async def main():
         sys.exit(1)
 
 
+def main():
+    """Synchronous wrapper for the main coroutine.
+
+    Call this from packaging entry points (console_scripts) or from
+    environments that expect a regular callable. This avoids returning a
+    coroutine object to callers that won't await it.
+    """
+    asyncio.run(main_async())
+
+
 def run():
     """Synchronous entry point used by console scripts / containers.
 
-    This wraps the async ``main`` coroutine so that packaging entry points or a
-    container ``ENTRYPOINT ["python", "-m", ...]`` can call a plain function
-    without triggering the "coroutine was never awaited" warning.
+    Kept for backwards compatibility with earlier versions of this module.
+    It simply delegates to the synchronous ``main()`` wrapper above.
     """
-    asyncio.run(main())
+    main()
 
 
 if __name__ == "__main__":
@@ -596,4 +612,4 @@ if __name__ == "__main__":
     print("=" * 50)
 
     # Run the assistant
-    asyncio.run(main())
+    run()
