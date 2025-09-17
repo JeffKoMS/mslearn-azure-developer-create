@@ -6,26 +6,27 @@ image="rt-voice"
 tag="v1"
 
 # Create ACR and build image from Dockerfile
-az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
-az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile .
+echo "Crate Azure Container registry and building image."
+az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true >/dev/null
+az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile . >/dev/null
 
 # List image in ACR to verify deployment
-#clear
+echo "Verify image successfully deployed to ACR, it can fail occasionally."
 az acr repository list --name $acr_name --output table
-
-echo "Verify image successfully deployed to ACR..."
-read -n 1 -s -r -p "Press any key to continue..."
+echo "If you see your image in the table, press any key to continue."
+echo "Press ctrl+c if your image isn't listed"
+read -n 1 -s -r -p 
 clear
 
-# Retrieve name/password from ACR to allow App Service to access the container image
+echo "Retrieving name/password from ACR to allow App Service to access the container image"
 acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
 acr_pass=$(az acr credential show -n $acr_name --query passwords[0].value -o tsv | tr -d '\r')
 acr_login_server=$(az acr show --name $acr_name --query "loginServer" --output tsv | tr -d '\r')
 acr_image=${acr_login_server}/${image}:${tag}
 
 
-echo "Proceeding to deploy to Azure App service. Press any key to continue..."
-#read -n 1 -s -r
+echo "Gathering environment variables for deployment"
+
 
 # Use the retrieved ACR credentials to allow AppSvc to pull the image.
 # Parse the .env file exists in the repo root, and bring values into the  script environment 
@@ -63,25 +64,23 @@ env_vars=(
     VOICE_LIVE_INSTRUCTIONS="${VOICE_LIVE_INSTRUCTIONS}"
 )
 
-echo ""
-echo "Deploying container to Azure App Service (Linux). Press any key to continue or Ctrl-C to skip..."
-#read -n 1 -s -r
+echo "Begin deployment to Azure App Service..."
 
-# Names (change if you want deterministic values)
-appsvc_plan="rtv-app-plan"
-webapp_name="rtv-app-web-$RANDOM"
+appsvc_plan=rtv-app-plan
+webapp_name=rtv-app-web-2
 
 echo "Creating App Service plan: $appsvc_plan (Linux, B1)"
 az appservice plan create --name "$appsvc_plan" \
-    --resource-group "$rg" \
+    --resource-group $rg \
     --is-linux \
     --sku B1 >/dev/null
 
 echo "Creating Web App: $webapp_name"
-# Create the webapp without passing the image (avoid deprecated flag and credential lookup warning)
-az webapp create --resource-group "$rg" \
-    --plan "$appsvc_plan" \
-    --name "$webapp_name" >/dev/null
+# Create the webapp with Docker runtime for container deployment
+az webapp create --resource-group $rg \
+    --plan $appsvc_plan \
+    --name $webapp_name \
+    --runtime "PYTHON:3.10" >/dev/null
 
 echo "Configuring Web App container settings to pull from ACR (using retrieved credentials)"
 az webapp config container set \
@@ -92,7 +91,8 @@ az webapp config container set \
     --container-registry-user "$acr_user" \
     --container-registry-password "$acr_pass" >/dev/null
 
-# Apply environment variables (App Settings)
+
+echo "Applying environment variables to web app."
 if [ ${#env_vars[@]} -gt 0 ]; then
     echo "Setting App Settings (environment variables) on Web App..."
     az webapp config appsettings set --resource-group "$rg" \
@@ -108,6 +108,7 @@ az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
 echo
 echo "App Service deployment complete."
 echo "Your app should be available at: https://${webapp_name}.azurewebsites.net"
+echo "It may take a few minutes to start."
 echo
 
 
