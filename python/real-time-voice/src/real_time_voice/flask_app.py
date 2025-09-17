@@ -100,18 +100,19 @@ def _validate_env() -> Tuple[bool, str]:
 
     model = os.environ.get("VOICE_LIVE_MODEL")
     voice = os.environ.get("VOICE_LIVE_VOICE")
+    api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
 
     missing = []
     if not model:
         missing.append("VOICE_LIVE_MODEL")
     if not voice:
         missing.append("VOICE_LIVE_VOICE")
+    if not api_key:
+        missing.append("AZURE_VOICE_LIVE_API_KEY")
     if missing:
         return False, f"Missing required environment variables: {', '.join(missing)}"
-    # Authentication will use DefaultAzureCredential / Managed Identity.
-    # No API keys required; ensure the container / environment has either a user-assigned or system-assigned MI
-    # with proper RBAC to the Azure OpenAI (Voice Live) resource.
-    logger.debug("Auth: using DefaultAzureCredential / Managed Identity chain.")
+    # Authentication will use API key (AZURE_VOICE_LIVE_API_KEY) to authenticate to VoiceLive endpoint.
+    logger.debug("Auth: using API key from AZURE_VOICE_LIVE_API_KEY")
     return True, "ok"
 
 
@@ -234,11 +235,9 @@ def _run_assistant_bg():
     global assistant_instance, shutdown_requested, assistant_loop
     try:
         import os
-        from azure.core.credentials import AzureKeyCredential, TokenCredential  # type: ignore
-        # Use DefaultAzureCredential so it works locally (env vars/CLI) and in Azure (Managed Identity)
-        from azure.identity import DefaultAzureCredential  # type: ignore
+        from azure.core.credentials import AzureKeyCredential, TokenCredential
 
-        endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
+        endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT") or "wss://api.voicelive.com/v1"
         model = os.environ.get("VOICE_LIVE_MODEL")
         voice = os.environ.get("VOICE_LIVE_VOICE")
         instructions = os.environ.get("VOICE_LIVE_INSTRUCTIONS") or "You are a helpful voice assistant."
@@ -247,19 +246,13 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        # Acquire credential via DefaultAzureCredential. This keeps the app simple for students:
-        # locally it will use environment variables / Azure CLI; in Azure it will use the attached managed identity.
-        from azure.identity import DefaultAzureCredential  # type: ignore
-
-        credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)  # type: ignore[assignment]
-        logger.info("Using DefaultAzureCredential for authentication")
-
-        # (Optional) attempt a proactive token fetch for diagnostics (won't crash if fails)
-        try:  # pragma: no cover - best-effort token warm-up
-            token = credential.get_token("https://cognitiveservices.azure.com/.default")
-            logger.info("Successfully acquired initial access token (exp=%s)", getattr(token, 'expires_on', 'n/a'))
-        except Exception as auth_ex:
-            logger.warning("Initial token acquisition failed (continuing, may still succeed later): %s", auth_ex)
+        # Use API key authentication for the web app (AZURE_VOICE_LIVE_API_KEY)
+        api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
+        if not api_key:
+            set_state("error", "Missing AZURE_VOICE_LIVE_API_KEY environment variable")
+            return
+        credential = AzureKeyCredential(api_key)
+        logger.info("Using API key authentication for VoiceLive (AZURE_VOICE_LIVE_API_KEY)")
 
         def cb(state, message):
             set_state(state, message)
@@ -398,9 +391,26 @@ def health():
         }), 200
 
 
-@app.route("/")
+@app.get("/")
 def index():
-    return render_template("index.html")
+    """Render the main UI and expose selected environment variables for display.
+
+    We intentionally show the *values* of a small set of environment variables
+    so the developer or tester can confirm configuration in the browser.
+    Values are displayed as the variable value or "(not set)" when missing.
+    """
+    import os
+
+    env = {
+        "VOICE_LIVE_MODEL": os.environ.get("VOICE_LIVE_MODEL") or "(not set)",
+        "VOICE_LIVE_VOICE": os.environ.get("VOICE_LIVE_VOICE") or "(not set)",
+        "AZURE_VOICE_LIVE_ENDPOINT": os.environ.get("AZURE_VOICE_LIVE_ENDPOINT") or "(not set)",
+        "VOICE_LIVE_INSTRUCTIONS": os.environ.get("VOICE_LIVE_INSTRUCTIONS") or "(not set)",
+    }
+    return render_template("index.html", env=env)
+
+
+# The root route is implemented above with environment values passed in.
 
 
 def main() -> None:

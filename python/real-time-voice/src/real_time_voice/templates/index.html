@@ -77,11 +77,11 @@
     <details style="margin-top:1rem;">
       <summary>Environment variables required (server)</summary>
       <ul>
-        <li><code>VOICE_LIVE_MODEL</code></li>
-        <li><code>VOICE_LIVE_VOICE</code></li>
+        <li><code>VOICE_LIVE_MODEL</code>: <strong>{{ env.VOICE_LIVE_MODEL }}</strong></li>
+        <li><code>VOICE_LIVE_VOICE</code>: <strong>{{ env.VOICE_LIVE_VOICE }}</strong></li>
   <!-- API key removed; authentication uses DefaultAzureCredential chain -->
-        <li><code>AZURE_VOICE_LIVE_ENDPOINT</code> (optional; default <code>wss://api.voicelive.com/v1</code>)</li>
-        <li><code>VOICE_LIVE_INSTRUCTIONS</code> (optional)</li>
+        <li><code>AZURE_VOICE_LIVE_ENDPOINT</code>: <strong>{{ env.AZURE_VOICE_LIVE_ENDPOINT }}</strong></li>
+        <li><code>VOICE_LIVE_INSTRUCTIONS</code>: <strong>{{ env.VOICE_LIVE_INSTRUCTIONS }}</strong></li>
       </ul>
       <p class="small hint">The browser sends 24kHz mono PCM16 base64 chunks to <code>/audio-chunk</code>. The server emits status, log & audio events via <code>/events</code> (SSE).</p>
     </details>
