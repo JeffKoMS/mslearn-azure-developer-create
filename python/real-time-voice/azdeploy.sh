@@ -5,7 +5,7 @@ acr_name=acrrealtime1000004 #acrrealtime$RANDOM
 image="rt-voice"
 tag="v1"
 dns_label=realtime-test-159791 #realtime-voice-$RANDOM
-aci_name="aci-realtime-app"
+
 
 # Create ACR and build image from Dockerfile
 #az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true
@@ -70,26 +70,58 @@ env_vars=(
 )
 
     # Echo the env vars that will be supplied to the container for visibility
-    echo "Environment variables to be passed to ACI:"
+    echo "Environment variables to be passed to App Service:"
     for kv in "${env_vars[@]}"; do
         echo "  $kv"
     done
 read -n 1 -s -r -p "Press any key to continue..."
 
-az container create \
-    --resource-group $rg \
-    --name $aci_name \
-    --image $acr_image \
-    --registry-login-server $acr_login_server \
-    --registry-username "$acr_user" \
-    --registry-password "$acr_pass" \
-    --os-type Linux \
-    --cpu 1 \
-    --memory 2 \
-    --ports 5000 \
-    --ip-address public \
-    --dns-name-label $dns_label \
-    --environment-variables "${env_vars[@]}" \
-    --restart-policy Always
 
-echo "ACI deployed. You can inspect the container with 'az container show' and view logs with 'az container logs'."
+echo
+echo "Deploying container to Azure App Service (Linux). Press any key to continue or Ctrl-C to skip..."
+read -n 1 -s -r
+
+# Names (change if you want deterministic values)
+appsvc_plan="rtv-app-plan"
+webapp_name="rtv-app-web-$RANDOM"
+
+echo "Creating App Service plan: $appsvc_plan (Linux, B1)"
+az appservice plan create --name "$appsvc_plan" \
+    --resource-group "$rg" \
+    --is-linux \
+    --sku B1 >/dev/null
+
+echo "Creating Web App: $webapp_name"
+# Create the webapp without passing the image (avoid deprecated flag and credential lookup warning)
+az webapp create --resource-group "$rg" \
+    --plan "$appsvc_plan" \
+    --name "$webapp_name" >/dev/null
+
+echo "Configuring Web App container settings to pull from ACR (using retrieved credentials)"
+az webapp config container set \
+    --name "$webapp_name" \
+    --resource-group "$rg" \
+    --container-image-name "$acr_image" \
+    --container-registry-url "https://$acr_login_server" \
+    --container-registry-user "$acr_user" \
+    --container-registry-password "$acr_pass" >/dev/null
+
+# Apply environment variables (App Settings)
+if [ ${#env_vars[@]} -gt 0 ]; then
+    echo "Setting App Settings (environment variables) on Web App..."
+    az webapp config appsettings set --resource-group "$rg" \
+        --name "$webapp_name" \
+        --settings "${env_vars[@]}" >/dev/null
+fi
+
+# Start / Restart to ensure container is pulled
+echo "Restarting Web App to ensure new container image is pulled..."
+az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
+
+# Show final URL
+echo
+echo "App Service deployment complete."
+echo "Your app should be available at: https://${webapp_name}.azurewebsites.net"
+echo
+
+
