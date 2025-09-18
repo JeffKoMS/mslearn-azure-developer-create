@@ -14,7 +14,9 @@ from aiohttp import web
 
 from flask import Flask, render_template, jsonify, Response, request
 
-app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
+app = Flask(__name__, 
+           template_folder=str(Path(__file__).parent / "templates"),
+           static_folder=str(Path(__file__).parent / "static"))
 
 # ==============================================================================
 # GLOBAL STATE & CONFIGURATION 
@@ -28,7 +30,7 @@ WS_SERVER_PORT = 8765
 state_lock = threading.Lock()
 assistant_state = {
     "state": "idle",
-    "message": "Click Start to begin a voice session.",
+    "message": "Select 'Start Session' to begin a voice session.",
     "last_error": None,
     "connected": False,
 }
@@ -180,7 +182,8 @@ def _validate_env() -> Tuple[bool, str]:
     required_vars = [
         "VOICE_LIVE_MODEL",
         "VOICE_LIVE_VOICE", 
-        "AZURE_VOICE_LIVE_API_KEY"
+        "AZURE_VOICE_LIVE_API_KEY",
+        "AZURE_VOICE_LIVE_ENDPOINT"
     ]
     
     missing = [var for var in required_vars if not os.environ.get(var)]
@@ -225,7 +228,8 @@ class BasicVoiceAssistant:
             Modality,
             AudioFormat,
         )  # type: ignore
-        verbose = bool(int((__import__('os').environ.get('VOICE_LIVE_VERBOSE') or '0') != '0')) if False else bool(__import__('os').environ.get('VOICE_LIVE_VERBOSE'))
+        verbose_val = __import__('os').environ.get('VOICE_LIVE_VERBOSE', '0').strip()
+        verbose = bool(int(verbose_val)) if verbose_val.isdigit() else False
         try:
             _broadcast({"type": "log", "level": "info", "msg": f"Connecting to VoiceLive endpoint={self.endpoint} model={self.model} voice={self.voice}"})
             async with connect(
@@ -255,7 +259,6 @@ class BasicVoiceAssistant:
                 await conn.session.update(session=session_config)
 
                 # Main event processing loop
-                from azure.ai.voicelive.models import ServerEventType
                 async for event in conn:
                     if self._stopping:
                         break
@@ -297,7 +300,8 @@ class BasicVoiceAssistant:
         elif event_type == ServerEventType.RESPONSE_AUDIO_DONE:
             await self._handle_audio_done()
         elif event_type == ServerEventType.RESPONSE_DONE:
-            await self._handle_response_done()
+            # Reset cancellation flag but don't change state - _handle_audio_done already did
+            self._response_cancelled = False
         elif event_type == ServerEventType.ERROR:
             await self._handle_error(event)
 
@@ -350,12 +354,6 @@ class BasicVoiceAssistant:
         """Assistant finished speaking."""
         self._response_cancelled = False
         self.state_callback("ready", "Assistant finished. You can speak again.")
-
-    async def _handle_response_done(self):
-        """Complete response finished."""
-        self._response_cancelled = False
-        if assistant_state.get("state") not in {"error", "ready", "listening"}:
-            self.state_callback("ready", "Assistant ready for next input.")
 
     async def _handle_error(self, event):
         """Handle VoiceLive errors."""

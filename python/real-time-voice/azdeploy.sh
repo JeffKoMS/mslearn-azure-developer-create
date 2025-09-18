@@ -1,24 +1,53 @@
 #!/bin/bash
 rg=rg-rtvexercise
 location=eastus2
-acr_name=acrrealtime105 #acrrealtime$RANDOM
+acr_name=acrrealtime106 #acrrealtime$RANDOM
 image="rt-voice"
 tag="v1"
+appsvc_plan=rtv-app-plan3
+webapp_name=rtv-app-web-3
+
 
 # Create ACR and build image from Dockerfile
-echo "Crate Azure Container registry and building image."
+echo "Creating Azure Container Registry resource."
 az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true >/dev/null
-az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile . >/dev/null
 
-# List image in ACR to verify deployment
-echo "Verify image successfully deployed to ACR, it can fail occasionally."
-az acr repository list --name $acr_name --output table
-echo "If you see your image in the table, press any key to continue."
-echo "Press ctrl+c if your image isn't listed"
-read -n 1 -s -r -p 
-clear
+echo "Building image in ACR..."
+# Build image with retry logic
+max_retries=3
+retry_count=0
+
+while [ $retry_count -lt $max_retries ]; do
+    echo "Attempt $((retry_count + 1)) of $max_retries: Building image in ACR..."
+    
+    # Run the build command
+    az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile . >/dev/null 2>&1
+    
+    # Check if the image actually exists in the registry
+    if az acr repository show --name $acr_name --repository $image >/dev/null 2>&1; then
+        echo "✓ Image successfully built and verified in ACR"
+        az acr repository list --name $acr_name --output table
+        break
+    else
+        echo "✗ Image not found in ACR, retrying build..."
+        retry_count=$((retry_count + 1))
+        if [ $retry_count -lt $max_retries ]; then
+            echo "Waiting 5 seconds before retry..."
+            sleep 5
+        fi
+    fi
+done
+
+# Final check
+if [ $retry_count -eq $max_retries ]; then
+    echo "ERROR: Failed to build image after $max_retries attempts"
+    echo "Please check your Dockerfile and try again manually with:"
+    echo "az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile ."
+    exit 1
+fi
 
 echo "Retrieving name/password from ACR to allow App Service to access the container image"
+# Use the retrieved ACR credentials to allow AppSvc to pull the image.
 acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
 acr_pass=$(az acr credential show -n $acr_name --query passwords[0].value -o tsv | tr -d '\r')
 acr_login_server=$(az acr show --name $acr_name --query "loginServer" --output tsv | tr -d '\r')
@@ -26,9 +55,6 @@ acr_image=${acr_login_server}/${image}:${tag}
 
 
 echo "Gathering environment variables for deployment"
-
-
-# Use the retrieved ACR credentials to allow AppSvc to pull the image.
 # Parse the .env file exists in the repo root, and bring values into the  script environment 
 if [ -f .env ]; then
     echo "Loading environment variables from .env"
@@ -66,8 +92,7 @@ env_vars=(
 
 echo "Begin deployment to Azure App Service..."
 
-appsvc_plan=rtv-app-plan
-webapp_name=rtv-app-web-2
+
 
 echo "Creating App Service plan: $appsvc_plan (Linux, B1)"
 az appservice plan create --name "$appsvc_plan" \
