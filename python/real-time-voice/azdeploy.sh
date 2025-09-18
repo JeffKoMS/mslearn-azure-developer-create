@@ -1,44 +1,48 @@
 #!/bin/bash
-rg=rg-rtvexercise
-location=eastus2
-acr_name=acrrealtime106 #acrrealtime$RANDOM
+rg="rg-rtvexercise"
+location="eastus2"
+acr_name="acrrealtime108"
 image="rt-voice"
 tag="v1"
-appsvc_plan=rtv-app-plan3
-webapp_name=rtv-app-web-3
+appsvc_plan="rtv-app-plan5"
+webapp_name="rtv-webapp-5"
 
+clear
+echo "Starting deployment, takes about 10 minutes..."
 
 # Create ACR and build image from Dockerfile
-echo "Creating Azure Container Registry resource."
+echo
+echo "Creating Azure Container Registry resource..."
 az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true >/dev/null
+sleep 8 # To give time for the ACR creation to propagate
+echo "  - Resource created"
 
-echo "Building image in ACR..."
+echo
+echo "Building image in ACR...(takes 3-5 minutes per attempt)"
 # Build image with retry logic
 max_retries=3
 retry_count=0
 
 while [ $retry_count -lt $max_retries ]; do
-    echo "Attempt $((retry_count + 1)) of $max_retries: Building image in ACR..."
+    echo "  - Attempt $((retry_count + 1)) of $max_retries: building image..."
     
     # Run the build command
     az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile . >/dev/null 2>&1
-    
-    # Check if the image actually exists in the registry
+
+    # Check if the image exists in the registry
     if az acr repository show --name $acr_name --repository $image >/dev/null 2>&1; then
-        echo "✓ Image successfully built and verified in ACR"
-        az acr repository list --name $acr_name --output table
+        echo "  - Image successfully built and verified in ACR..."
         break
     else
-        echo "✗ Image not found in ACR, retrying build..."
+        echo "  - Image not found in ACR, retrying build..."
         retry_count=$((retry_count + 1))
         if [ $retry_count -lt $max_retries ]; then
-            echo "Waiting 5 seconds before retry..."
+            echo "  - Waiting 5 seconds before retry..."
             sleep 5
         fi
     fi
 done
 
-# Final check
 if [ $retry_count -eq $max_retries ]; then
     echo "ERROR: Failed to build image after $max_retries attempts"
     echo "Please check your Dockerfile and try again manually with:"
@@ -46,18 +50,12 @@ if [ $retry_count -eq $max_retries ]; then
     exit 1
 fi
 
-echo "Retrieving name/password from ACR to allow App Service to access the container image"
-# Use the retrieved ACR credentials to allow AppSvc to pull the image.
-acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
-acr_pass=$(az acr credential show -n $acr_name --query passwords[0].value -o tsv | tr -d '\r')
-acr_login_server=$(az acr show --name $acr_name --query "loginServer" --output tsv | tr -d '\r')
-acr_image=${acr_login_server}/${image}:${tag}
+echo
+echo "Begin Azure App Service deployment"
 
-
-echo "Gathering environment variables for deployment"
+echo "  - Gathering environment variables from .env file for App Service deployment.."
 # Parse the .env file exists in the repo root, and bring values into the  script environment 
 if [ -f .env ]; then
-    echo "Loading environment variables from .env"
     while IFS='=' read -r key val; do
         # Trim whitespace
         key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -90,24 +88,33 @@ env_vars=(
     VOICE_LIVE_INSTRUCTIONS="${VOICE_LIVE_INSTRUCTIONS}"
 )
 
-echo "Begin deployment to Azure App Service..."
+# Add performance settings to the environment variables
+perf_vars=(
+    WEBSITES_ENABLE_APP_SERVICE_STORAGE="false"
+    WEBSITES_CONTAINER_START_TIME_LIMIT="1800"
+)
 
+echo "  - Retrieving ACR credentials so App Service can access the container image..."
+# Use the retrieved ACR credentials to allow AppSvc to pull the image.
+acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
+acr_pass=$(az acr credential show -n $acr_name --query passwords[0].value -o tsv | tr -d '\r')
+acr_login_server=$(az acr show --name $acr_name --query "loginServer" --output tsv | tr -d '\r')
+acr_image=${acr_login_server}/${image}:${tag}
 
-
-echo "Creating App Service plan: $appsvc_plan (Linux, B1)"
+echo "  - Creating App Service plan: $appsvc_plan (Linux, B1)..."
 az appservice plan create --name "$appsvc_plan" \
     --resource-group $rg \
     --is-linux \
     --sku B1 >/dev/null
 
-echo "Creating Web App: $webapp_name"
+echo "  - Creating Web App: ${webapp_name}..."
 # Create the webapp with Docker runtime for container deployment
 az webapp create --resource-group $rg \
     --plan $appsvc_plan \
     --name $webapp_name \
     --runtime "PYTHON:3.10" >/dev/null
 
-echo "Configuring Web App container settings to pull from ACR (using retrieved credentials)"
+echo "  - Configuring Web App container settings to pull from ACR..."
 az webapp config container set \
     --name "$webapp_name" \
     --resource-group "$rg" \
@@ -116,24 +123,26 @@ az webapp config container set \
     --container-registry-user "$acr_user" \
     --container-registry-password "$acr_pass" >/dev/null
 
+echo "  - Configuring app settings and performance optimizations..."
+az webapp config set --resource-group "$rg" \
+    --name "$webapp_name" \
+    --startup-file "" \
+    --always-on true >/dev/null
 
-echo "Applying environment variables to web app."
-if [ ${#env_vars[@]} -gt 0 ]; then
-    echo "Setting App Settings (environment variables) on Web App..."
-    az webapp config appsettings set --resource-group "$rg" \
-        --name "$webapp_name" \
-        --settings "${env_vars[@]}" >/dev/null
-fi
+echo "  - Applying environment variables to web app..."
+az webapp config appsettings set --resource-group "$rg" \
+    --name "$webapp_name" \
+    --settings "${env_vars[@]}" "${perf_vars[@]}" >/dev/null
 
 # Start / Restart to ensure container is pulled
-echo "Restarting Web App to ensure new container image is pulled..."
+echo "  - Restarting Web App to ensure new container image is pulled..."
 az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
 
 # Show final URL
 echo
-echo "App Service deployment complete."
+echo "Deployment complete."
 echo "Your app should be available at: https://${webapp_name}.azurewebsites.net"
-echo "It may take a few minutes to start."
+echo "It may take a few minutes for the page to load."
 echo
 
 
