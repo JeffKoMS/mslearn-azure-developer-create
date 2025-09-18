@@ -14,8 +14,9 @@ echo "Starting deployment, takes about 10 minutes..."
 echo
 echo "Creating Azure Container Registry resource..."
 az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true >/dev/null
-sleep 8 # To give time for the ACR creation to propagate
 echo "  - Resource created"
+echo "  - Starting image build process in 10 seconds to reduce build failures."
+sleep 10 # To give time for the ACR service to be ready for build operations
 
 echo
 echo "Building image in ACR...(takes 3-5 minutes per attempt)"
@@ -137,6 +138,8 @@ az webapp config appsettings set --resource-group "$rg" \
 # Start / Restart to ensure container is pulled
 echo "  - Restarting Web App to ensure new container image is pulled..."
 az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
+sleep 15 #Time for the service to restart and pul image
+
 
 # Show final URL
 echo
