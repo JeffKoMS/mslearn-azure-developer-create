@@ -10,66 +10,141 @@ from typing import Optional, Tuple, Union, cast, List, Dict, Any
 import queue
 import json
 import base64
+from aiohttp import web
 
 from flask import Flask, render_template, jsonify, Response, request
 
-###############################################################################
-# NOTE: This file now contains a self-contained implementation of the voice
-# assistant (no dependency on voice_console.py). It embeds a minimal
-# AudioProcessor and BasicVoiceAssistant suitable for the web demo.
-###############################################################################
+app = Flask(__name__, 
+           template_folder=str(Path(__file__).parent / "templates"),
+           static_folder=str(Path(__file__).parent / "static"))
 
-app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
+# ==============================================================================
+# GLOBAL STATE & CONFIGURATION 
+# ==============================================================================
 
-# ------------------------------
-# Global assistant state
-# ------------------------------
+# WebSocket server configuration
+WS_SERVER_HOST = '0.0.0.0'
+WS_SERVER_PORT = 8765
+
+# Assistant state tracking
 state_lock = threading.Lock()
 assistant_state = {
-    "state": "idle",  # idle|starting|ready|listening|processing|assistant_speaking|error|stopped
-    "message": "Click Start to begin a voice session.",
+    "state": "idle",
+    "message": "Select 'Start Session' to begin a voice session.",
     "last_error": None,
     "connected": False,
 }
-assistant_thread: Optional[threading.Thread] = None
-assistant_instance = None  # Populated with a running assistant instance
-assistant_loop: Optional[asyncio.AbstractEventLoop] = None
-shutdown_requested = False
 
-# SSE client management: each client owns a queue we push events into
+# Threading components
+assistant_thread: Optional[threading.Thread] = None
+assistant_instance = None
+assistant_loop: Optional[asyncio.AbstractEventLoop] = None
+ws_server_thread: Optional[threading.Thread] = None
+
+# Server-Sent Events client management
 _sse_clients: List["queue.Queue[str]"] = []
 _sse_clients_lock = threading.Lock()
 
 
+# ==============================================================================
+# UTILITY FUNCTIONS
+# ==============================================================================
+
 def _broadcast(event: Dict[str, Any]):
+    """Broadcast SSE event to all connected clients."""
     data = f"data: {json.dumps(event)}\n\n"
     with _sse_clients_lock:
-        dead = []
-        for q in _sse_clients:
+        # Remove dead clients while broadcasting
+        dead_clients = []
+        for client_queue in _sse_clients:
             try:
-                q.put_nowait(data)
+                client_queue.put_nowait(data)
             except Exception:
-                dead.append(q)
-        for d in dead:
-            _sse_clients.remove(d)
+                dead_clients.append(client_queue)
+        
+        # Clean up disconnected clients
+        for dead_client in dead_clients:
+            _sse_clients.remove(dead_client)
+
+
+# ==============================================================================
+# WEBSOCKET AUDIO SERVER
+# ==============================================================================
+
+def _start_ws_server(host: str = WS_SERVER_HOST, port: int = WS_SERVER_PORT):
+    """Start WebSocket server for low-latency binary audio streaming."""
+    
+    async def handle_audio_websocket(request):
+        """Handle incoming WebSocket connections for binary audio data."""
+        ws = web.WebSocketResponse(max_msg_size=10 * 1024 * 1024)
+        await ws.prepare(request)
+        
+        try:
+            async for msg in ws:
+                if msg.type == web.WSMsgType.BINARY and assistant_instance and assistant_loop:
+                    # Convert binary PCM16 to base64 and send to assistant
+                    audio_b64 = base64.b64encode(msg.data).decode('utf-8')
+                    asyncio.run_coroutine_threadsafe(
+                        assistant_instance.append_audio(audio_b64), 
+                        assistant_loop
+                    )
+                elif msg.type == web.WSMsgType.ERROR:
+                    break
+        except Exception:
+            pass  # Handle connection errors gracefully
+        finally:
+            await ws.close()
+        
+        return ws
+
+    def run_websocket_server():
+        """Run WebSocket server in dedicated thread."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def start_server():
+            app = web.Application()
+            app.router.add_get('/ws-audio', handle_audio_websocket)
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, host, port)
+            await site.start()
+            
+            # Keep server running
+            while True:
+                await asyncio.sleep(3600)
+        
+        try:
+            loop.run_until_complete(start_server())
+        except Exception:
+            pass
+
+    # Start server in daemon thread
+    thread = threading.Thread(target=run_websocket_server, daemon=True)
+    thread.start()
+    return thread
 
 
 def set_state(state: str, message: str, *, error: str | None = None):
+    """Update assistant state and broadcast to clients."""
     with state_lock:
         assistant_state["state"] = state
         assistant_state["message"] = message
+        
         if error:
             assistant_state["last_error"] = error
+            
+        # Update connection status based on state
         if state in {"ready", "listening", "processing", "assistant_speaking"}:
             assistant_state["connected"] = True
-        if state in {"error", "stopped", "idle"}:
-            # Do not forcibly clear connected True if error occurs after connection, unless never reached ready
-            if state != "error":
-                assistant_state["connected"] = False
+        elif state in {"stopped", "idle"}:
+            assistant_state["connected"] = False
+    
+    # Broadcast state change to all clients
     _broadcast({
         "type": "status",
-        "state": assistant_state["state"],
-        "message": assistant_state["message"],
+        "state": state,
+        "message": message,
         "last_error": assistant_state.get("last_error"),
         "connected": assistant_state.get("connected"),
     })
@@ -80,42 +155,44 @@ logger = logging.getLogger("real_time_voice.flask")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s in %(name)s: %(message)s")
 
+# ---------------------------------------------------------------------------
+# Suppress noisy 200 OK HTTP access logs (Werkzeug dev server) while keeping
+# non-200 responses and internal status/log broadcasts. 
+# ---------------------------------------------------------------------------
+class _SuppressHTTP200(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401 - simple filter
+        msg = record.getMessage()
+        # Typical pattern: '127.0.0.1 - - [timestamp] "POST /audio-chunk HTTP/1.1" 200 -'
+        # We suppress any line that clearly denotes an HTTP 200 access log.
+        if '" 200 ' in msg:
+            return False
+        return True
+
+werkzeug_logger = logging.getLogger("werkzeug")
+# Avoid stacking multiple identical filters if code reloaded (Flask debug reload)
+already = any(isinstance(f, _SuppressHTTP200) for f in getattr(werkzeug_logger, 'filters', []))
+if not already:
+    werkzeug_logger.addFilter(_SuppressHTTP200())
+
 
 def _validate_env() -> Tuple[bool, str]:
-    """Validate required environment variables before starting assistant."""
+    """Validate required environment variables."""
     import os
-
-    model = os.environ.get("VOICE_LIVE_MODEL")
-    voice = os.environ.get("VOICE_LIVE_VOICE")
-    api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
-
-    missing = []
-    if not model:
-        missing.append("VOICE_LIVE_MODEL")
-    if not voice:
-        missing.append("VOICE_LIVE_VOICE")
-    if not api_key:
-        # Not strictly required if DefaultAzureCredential works, but warn user
-        logger.info("AZURE_VOICE_LIVE_API_KEY not set; will attempt DefaultAzureCredential")
-
+    
+    required_vars = [
+        "VOICE_LIVE_MODEL",
+        "VOICE_LIVE_VOICE", 
+        "AZURE_VOICE_LIVE_API_KEY",
+        "AZURE_VOICE_LIVE_ENDPOINT"
+    ]
+    
+    missing = [var for var in required_vars if not os.environ.get(var)]
+    
     if missing:
         return False, f"Missing required environment variables: {', '.join(missing)}"
-    return True, "ok"
+    
+    return True, "Configuration valid"
 
-
-class AudioProcessor:  # Retained for interface clarity; no-op since browser handles audio
-    async def start_capture(self):  # pragma: no cover - no-op
-        return
-    async def stop_capture(self):  # pragma: no cover - no-op
-        return
-    async def start_playback(self):  # pragma: no cover - no-op
-        return
-    async def queue_audio(self, data: bytes):  # pragma: no cover - no-op
-        return
-    async def stop_playback(self):  # pragma: no cover - no-op
-        return
-    async def cleanup(self):  # pragma: no cover - no-op
-        return
 
 
 class BasicVoiceAssistant:
@@ -136,7 +213,9 @@ class BasicVoiceAssistant:
         self.voice = voice
         self.instructions = instructions
         self.connection = None
-        self.audio: Optional[AudioProcessor] = AudioProcessor()
+        # When True, server will suppress broadcasting RESPONSE_AUDIO_DELTA events
+        # for the current response because an interrupt/cancel was requested.
+        self._response_cancelled = False
         self._stopping = False
         self.state_callback = state_callback or (lambda *_: None)
 
@@ -149,7 +228,8 @@ class BasicVoiceAssistant:
             Modality,
             AudioFormat,
         )  # type: ignore
-        verbose = bool(int((__import__('os').environ.get('VOICE_LIVE_VERBOSE') or '0') != '0')) if False else bool(__import__('os').environ.get('VOICE_LIVE_VERBOSE'))
+        verbose_val = __import__('os').environ.get('VOICE_LIVE_VERBOSE', '0').strip()
+        verbose = bool(int(verbose_val)) if verbose_val.isdigit() else False
         try:
             _broadcast({"type": "log", "level": "info", "msg": f"Connecting to VoiceLive endpoint={self.endpoint} model={self.model} voice={self.voice}"})
             async with connect(
@@ -159,6 +239,8 @@ class BasicVoiceAssistant:
                 connection_options={"max_msg_size": 10 * 1024 * 1024, "heartbeat": 20, "timeout": 20},
             ) as conn:
                 self.connection = conn
+                # Reset cancellation flag at the start of a new connection/session
+                self._response_cancelled = False
 
                 # Determine voice config
                 if self.voice.startswith("en-") or "-" in self.voice:
@@ -176,41 +258,12 @@ class BasicVoiceAssistant:
                 )
                 await conn.session.update(session=session_config)
 
-                # Event loop
-                from azure.ai.voicelive.models import ServerEventType  # type: ignore
+                # Main event processing loop
                 async for event in conn:
                     if self._stopping:
                         break
-                    et = event.type
-                    if verbose:
-                        _broadcast({"type": "log", "level": "debug", "event_type": et})
-                    if et == ServerEventType.SESSION_UPDATED:
-                        # Inform user they can begin speaking immediately; "Listening" event may only appear once VAD detects speech
-                        self.state_callback("ready", "Session ready. You can start speaking now.")
-                    elif et == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
-                        self.state_callback("listening", "Listening… speak now")
-                        try:
-                            await conn.response.cancel()
-                        except Exception:
-                            pass
-                    elif et == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:
-                        self.state_callback("processing", "Processing your input…")
-                    elif et == ServerEventType.RESPONSE_AUDIO_DELTA:  # type: ignore[attr-defined]
-                        if assistant_state.get("state") != "assistant_speaking":
-                            self.state_callback("assistant_speaking", "Assistant speaking…")
-                        data = getattr(event, "delta", None)
-                        if data:
-                            _broadcast({"type": "audio", "audio": base64.b64encode(data).decode("utf-8")})
-                    elif et == ServerEventType.RESPONSE_AUDIO_DONE:
-                        self.state_callback("ready", "Assistant finished. You can speak again.")
-                    elif et == ServerEventType.RESPONSE_DONE:
-                        if assistant_state.get("state") not in {"error", "ready", "listening"}:
-                            self.state_callback("ready", "Assistant ready for next input.")
-                    elif et == ServerEventType.ERROR:  # type: ignore[attr-defined]
-                        err = getattr(event, "error", None)
-                        msg = getattr(err, "message", "Unknown error") if err else "Unknown error"
-                        self.state_callback("error", f"Error: {msg}")
-                    # Additional events ignored for brevity
+                    
+                    await self._handle_event(event, conn, verbose)
         except Exception as e:
             tb = traceback.format_exc(limit=6)
             _broadcast({"type": "log", "level": "error", "msg": f"Connection failed: {e}", "trace": tb})
@@ -228,6 +281,86 @@ class BasicVoiceAssistant:
         except Exception as e:  # pragma: no cover
             logger.error("Failed to append audio: %s", e)
 
+    async def _handle_event(self, event, conn, verbose=False):
+        """Handle VoiceLive events with clear separation by event type."""
+        from azure.ai.voicelive.models import ServerEventType
+        
+        event_type = event.type
+        if verbose:
+            _broadcast({"type": "log", "level": "debug", "event_type": str(event_type)})
+        
+        if event_type == ServerEventType.SESSION_UPDATED:
+            await self._handle_session_updated()
+        elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
+            await self._handle_speech_started(conn)
+        elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:
+            await self._handle_speech_stopped()
+        elif event_type == ServerEventType.RESPONSE_AUDIO_DELTA:
+            await self._handle_audio_delta(event)
+        elif event_type == ServerEventType.RESPONSE_AUDIO_DONE:
+            await self._handle_audio_done()
+        elif event_type == ServerEventType.RESPONSE_DONE:
+            # Reset cancellation flag but don't change state - _handle_audio_done already did
+            self._response_cancelled = False
+        elif event_type == ServerEventType.ERROR:
+            await self._handle_error(event)
+
+    async def _handle_session_updated(self):
+        """Session is ready for conversation."""
+        self.state_callback("ready", "Session ready. You can start speaking now.")
+
+    async def _handle_speech_started(self, conn):
+        """User started speaking - handle interruption if needed."""
+        self.state_callback("listening", "Listening… speak now")
+        
+        try:
+            # Always stop client audio playback when user speaks
+            _broadcast({"type": "control", "action": "stop_playback"})
+            
+            # Only cancel if assistant is actively responding
+            current_state = assistant_state.get("state")
+            if current_state in {"assistant_speaking", "processing"}:
+                self._response_cancelled = True
+                await conn.response.cancel()
+                _broadcast({"type": "log", "level": "debug", 
+                          "msg": f"Interrupted assistant during {current_state}"})
+            else:
+                _broadcast({"type": "log", "level": "debug", 
+                          "msg": f"User speaking during {current_state} - no cancellation needed"})
+        except Exception as e:
+            _broadcast({"type": "log", "level": "debug", 
+                      "msg": f"Exception in speech handler: {e}"})
+
+    async def _handle_speech_stopped(self):
+        """User stopped speaking - processing input."""
+        self.state_callback("processing", "Processing your input…")
+
+    async def _handle_audio_delta(self, event):
+        """Stream assistant audio to clients."""
+        if self._response_cancelled:
+            return  # Skip cancelled responses
+            
+        # Update state when assistant starts speaking
+        if assistant_state.get("state") != "assistant_speaking":
+            self.state_callback("assistant_speaking", "Assistant speaking…")
+        
+        # Broadcast audio delta to clients
+        audio_data = getattr(event, "delta", None)
+        if audio_data:
+            audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+            _broadcast({"type": "audio", "audio": audio_b64})
+
+    async def _handle_audio_done(self):
+        """Assistant finished speaking."""
+        self._response_cancelled = False
+        self.state_callback("ready", "Assistant finished. You can speak again.")
+
+    async def _handle_error(self, event):
+        """Handle VoiceLive errors."""
+        error = getattr(event, "error", None)
+        message = getattr(error, "message", "Unknown error") if error else "Unknown error"
+        self.state_callback("error", f"Error: {message}")
+
     def request_stop(self):
         self._stopping = True
 
@@ -237,11 +370,9 @@ def _run_assistant_bg():
     global assistant_instance, shutdown_requested, assistant_loop
     try:
         import os
-        from azure.core.credentials import AzureKeyCredential, TokenCredential  # type: ignore
-        from azure.identity import DefaultAzureCredential  # type: ignore
+        from azure.core.credentials import AzureKeyCredential, TokenCredential
 
-        api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
-        endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
+        endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT") or "wss://api.voicelive.com/v1"
         model = os.environ.get("VOICE_LIVE_MODEL")
         voice = os.environ.get("VOICE_LIVE_VOICE")
         instructions = os.environ.get("VOICE_LIVE_INSTRUCTIONS") or "You are a helpful voice assistant."
@@ -250,10 +381,13 @@ def _run_assistant_bg():
             set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
             return
 
-        if api_key:
-            credential: Union[TokenCredential, AzureKeyCredential] = AzureKeyCredential(api_key)
-        else:
-            credential = DefaultAzureCredential()
+        # Use API key authentication for the web app (AZURE_VOICE_LIVE_API_KEY)
+        api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
+        if not api_key:
+            set_state("error", "Missing AZURE_VOICE_LIVE_API_KEY environment variable")
+            return
+        credential = AzureKeyCredential(api_key)
+        logger.info("Using API key authentication for VoiceLive (AZURE_VOICE_LIVE_API_KEY)")
 
         def cb(state, message):
             set_state(state, message)
@@ -302,6 +436,13 @@ def start_session():
 
     assistant_thread = threading.Thread(target=_run_assistant_bg, daemon=True)
     assistant_thread.start()
+    # Ensure websocket server for low-latency audio streaming is running
+    global ws_server_thread
+    if not ws_server_thread:
+        try:
+            ws_server_thread = _start_ws_server()
+        except Exception:
+            pass
     # Give the thread a brief moment to progress
     time.sleep(0.1)
     return jsonify({"started": True, "status": assistant_state})
@@ -315,6 +456,66 @@ def stop_session():
     assistant_instance.request_stop()
     set_state("stopped", "Stopping session…")
     return jsonify({"stopped": True})
+
+
+@app.post("/interrupt")
+def interrupt():
+    """Request an interruption of the current assistant response.
+
+    Attempt to cancel the active response on the assistant connection. If the
+    SDK doesn't expose a cancel method, fall back to requesting a stop on the
+    assistant instance.
+    """
+    global assistant_instance, assistant_loop
+    if not assistant_instance or not assistant_loop:
+        return jsonify({"interrupted": False, "reason": "No active session"}), 400
+    try:
+        # Mark response cancelled on the assistant instance immediately so the
+        # event loop will suppress broadcasting further RESPONSE_AUDIO_DELTA events
+        try:
+            if assistant_instance:
+                assistant_instance._response_cancelled = True
+        except Exception:
+            pass
+
+        # Immediately instruct connected clients to stop any pending playback
+        _broadcast({"type": "log", "level": "debug", "msg": f"Interrupt requested: broadcasting stop_playback at {time.time()}"})
+        _broadcast({"type": "control", "action": "stop_playback"})
+
+        # Also, stop assistant playback on the server-side audio processor (if present)
+        try:
+            ap = getattr(assistant_instance, 'connection', None)
+            # The assistant_instance in this design doesn't own the audio processor when
+            # running in the flask app variant; instead we attempt to stop playback via
+            # any audio processor attached to assistant_instance (if available).
+            ap_obj = getattr(assistant_instance, 'audio_processor', None)
+            if ap_obj and hasattr(ap_obj, 'stop_playback') and assistant_loop:
+                try:
+                    # Schedule stop_playback to run promptly on the assistant loop
+                    asyncio.run_coroutine_threadsafe(ap_obj.stop_playback(), assistant_loop)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Schedule the SDK-level cancel immediately on the assistant loop for low latency
+        try:
+            conn = getattr(assistant_instance, "connection", None)
+            resp = getattr(conn, "response", None) if conn else None
+            if resp and hasattr(resp, "cancel") and assistant_loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(resp.cancel(), assistant_loop)
+                    _broadcast({"type": "log", "level": "info", "msg": "Interrupt scheduled (cancel)"})
+                except Exception as e:
+                    _broadcast({"type": "log", "level": "error", "msg": f"Failed to schedule cancel(): {e}"})
+            else:
+                _broadcast({"type": "log", "level": "warn", "msg": "No response.cancel() available; cannot perform graceful interrupt via SDK."})
+        except Exception as e:
+            _broadcast({"type": "log", "level": "error", "msg": f"Interrupt handler exception: {e}"})
+
+        return jsonify({"interrupted": True})
+    except Exception as e:
+        return jsonify({"interrupted": False, "reason": str(e)}), 500
 
 
 @app.post("/audio-chunk")
@@ -392,14 +593,36 @@ def health():
         }), 200
 
 
-@app.route("/")
+@app.get("/")
 def index():
-    return render_template("index.html")
+    """Render the main UI and expose selected environment variables for display.
+
+    We intentionally show the *values* of a small set of environment variables
+    so the developer or tester can confirm configuration in the browser.
+    Values are displayed as the variable value or "(not set)" when missing.
+    """
+    import os
+
+    env = {
+        "VOICE_LIVE_MODEL": os.environ.get("VOICE_LIVE_MODEL") or "(not set)",
+        "VOICE_LIVE_VOICE": os.environ.get("VOICE_LIVE_VOICE") or "(not set)",
+        "AZURE_VOICE_LIVE_ENDPOINT": os.environ.get("AZURE_VOICE_LIVE_ENDPOINT") or "(not set)",
+        "VOICE_LIVE_INSTRUCTIONS": os.environ.get("VOICE_LIVE_INSTRUCTIONS") or "(not set)",
+    }
+    return render_template("index.html", env=env)
+
+
+# The root route is implemented above with environment values passed in.
 
 
 def main() -> None:
     # Basic dev server; in production consider a WSGI/ASGI server like gunicorn or uvicorn.
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    import os
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", os.environ.get("FLASK_RUN_PORT", "5000")))
+    debug_env = os.environ.get("FLASK_DEBUG", os.environ.get("DEBUG", "0"))
+    debug = bool(int(debug_env)) if str(debug_env).isdigit() else debug_env.lower() in ("1", "true", "yes")
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":  # pragma: no cover
