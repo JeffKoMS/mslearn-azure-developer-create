@@ -26,7 +26,6 @@ dependencies = [
 [project.scripts]
 # Short names for uv run 
 web = "real_time_voice.flask_app:main"
-console = "real_time_voice.voice_console:main"
 
 [build-system]
 requires = ["hatchling"]
