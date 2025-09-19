@@ -472,7 +472,7 @@ async def main_async():
     warning. The synchronous `main()` below calls `asyncio.run(main_async())`.
     """
     # Load configuration from environment
-    endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT", "wss://api.voicelive.com/v1")
+    endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT")
     model = os.environ.get("VOICE_LIVE_MODEL")
     voice = os.environ.get("VOICE_LIVE_VOICE")
     instructions = os.environ.get("VOICE_LIVE_INSTRUCTIONS")

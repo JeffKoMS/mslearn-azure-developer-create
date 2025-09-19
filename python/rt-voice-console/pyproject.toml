@@ -20,10 +20,11 @@ dependencies = [
     "typing_extensions==4.13.2",
     "urllib3==2.4.0",
     "azure-ai-voicelive==1.0.0b2",
+    "pyaudio>=0.2.14",
 ]
 
 [project.scripts]
 # Short names for uv run 
-console = "real_time_voice.flask_app:main"
+console = "voice_console.voice_console:main"
 
 
