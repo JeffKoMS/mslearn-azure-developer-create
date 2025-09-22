@@ -11,7 +11,7 @@ Create your own `.env` file in the root of this project.
 Required:
 * `AZURE_VOICE_LIVE_ENDPOINT` This is the endpoint for the model and should resemble the following example:
     * `AZURE_VOICE_LIVE_ENDPOINT`="https://your-endpoint.cognitiveservices.azure.com"
-* `AZURE_VOICE_LIVE_API_KEY`="Your API Key"
+* `AZURE_VOICE_LIVE_API_KEY`="Your API Key" This is located just below the endpoint for your model.
 * `VOICE_LIVE_MODEL`="gpt-realtime" or your model
 * `VOICE_LIVE_VOICE`="alloy" or your preferred voice
 * `VOICE_LIVE_INSTRUCTIONS`="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
