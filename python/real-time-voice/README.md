@@ -46,5 +46,6 @@ If you have **uv** installed:
 If you don't have **uv** installed:
 
 * Create environment: `python -m venv .venv`
+* Install dependencies: `pip install -r requirements.txt`
 * Activate environment: `.\.venv\Scripts\Activate.ps1`
 * Run application (from project root): `python .\src\real_time_voice\flask_app.py`
