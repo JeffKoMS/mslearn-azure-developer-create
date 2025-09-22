@@ -1,21 +1,16 @@
-# Deployment
+# Requirements
 
-The provided `azdeploy.sh` creates the required resources in Azure:
-
-* Change the variables at the top of the script to match your needs
-* Creates Azure Container Registry service
-* Uses ACR to build and deploy the Dockerfile image to ACR
-* Creates the App Service Plan
-* Creates the App Service Web App
-* Configures the web app for container image in ACR
-* Configures the web app environment variables
+* Deploy one of the "realtime" models in AI Foundry.
+* Create `.env` file in project root and add required variables
+* Deploy containerized app to Azure, or run locally
 
 ## Environment Variables
 
-Need to create your own .env file in the root directory. 
+Create your own `.env` file in the root of this project. 
 
 Required:
-* `AZURE_VOICE_LIVE_ENDPOINT`="https://<endpoint for model>.cognitiveservices.azure.com"
+* `AZURE_VOICE_LIVE_ENDPOINT` This is the endpoint for the model and should resemble the following example:
+    * `AZURE_VOICE_LIVE_ENDPOINT`="https://your-endpoint.cognitiveservices.azure.com"
 * `AZURE_VOICE_LIVE_API_KEY`="Your API Key"
 * `VOICE_LIVE_MODEL`="gpt-realtime" or your model
 * `VOICE_LIVE_VOICE`="alloy" or your preferred voice
@@ -24,8 +19,29 @@ Required:
 
 If required variables are missing the application returns an error state (`/status`).
 
+## Azure resource deployment
+
+The provided `azdeploy.sh` creates the required resources in Azure:
+
+* Change the variables at the top of the script to match your needs
+* Creates Azure Container Registry service
+* Uses ACR tasks to build and deploy the Dockerfile image to ACR
+* Creates the App Service Plan
+* Creates the App Service Web App
+* Configures the web app for container image in ACR
+* Configures the web app environment variables
+* The script will provide the App Service endpoint
+
 ## Local development
 
-* Managed with UV
+The project can be run locally. It was was created and managed using **uv**, but it is not required to run.
+
+If you have **uv** installed:
+
 * Alias created for web app: `uv run web` to start the `flask_app.py` script.
 * requirements.txt file created with `uv pip compile pyproject.toml -o requirements.txt`
+
+If you don't have **uv** installed:
+
+* Activate environment: `.\.venv\Scripts\Activate.ps1`
+* Run application (from project root): `python .\src\real_time_voice\flask_app.py`
