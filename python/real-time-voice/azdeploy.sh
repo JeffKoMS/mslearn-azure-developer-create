@@ -10,6 +10,12 @@ tag="v1"
 clear
 echo "Starting deployment, takes about 10 minutes..."
 
+# Create resource group
+echo
+echo "Creating resource group..."
+az group create -n $rg -l $location >/dev/null
+echo "  - Resource group created, or already exists."
+
 # Create ACR and build image from Dockerfile
 echo
 echo "Creating Azure Container Registry resource..."
