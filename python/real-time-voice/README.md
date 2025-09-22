@@ -38,10 +38,13 @@ The project can be run locally. It was was created and managed using **uv**, but
 
 If you have **uv** installed:
 
+* Run `uv venv` to create the environment
+* Run `uv sync` to add packages
 * Alias created for web app: `uv run web` to start the `flask_app.py` script.
 * requirements.txt file created with `uv pip compile pyproject.toml -o requirements.txt`
 
 If you don't have **uv** installed:
 
+* Create environment: `python -m venv .venv`
 * Activate environment: `.\.venv\Scripts\Activate.ps1`
 * Run application (from project root): `python .\src\real_time_voice\flask_app.py`
