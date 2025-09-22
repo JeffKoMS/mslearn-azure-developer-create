@@ -15,7 +15,7 @@ Required:
 * `VOICE_LIVE_MODEL`="gpt-realtime" or your model
 * `VOICE_LIVE_VOICE`="alloy" or your preferred voice
 * `VOICE_LIVE_INSTRUCTIONS`="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
-* `VOICE_LIVE_VERBOSE`="" #Suppresses excessive logging to the terminal if running locally
+* `VOICE_LIVE_VERBOSE`="" Note: Suppresses excessive logging to the terminal if running locally
 
 If required variables are missing the application returns an error state (`/status`).
 
