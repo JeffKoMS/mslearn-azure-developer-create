@@ -1,11 +1,11 @@
 #!/bin/bash
-rg="rg-rtvexercise"
-location="eastus2"
-acr_name="acrrealtime108"
+rg="rg-rtvexercise" # Replace with your resource group
+location="eastus2" # Or a location near you
+acr_name="acrrealtime108" # Needs to be unique
+appsvc_plan="rtv-app-plan-5" # Needs to be unique
+webapp_name="rtv-webapp-5" # Needs to be unique
 image="rt-voice"
 tag="v1"
-appsvc_plan="rtv-app-plan5"
-webapp_name="rtv-webapp-5"
 
 clear
 echo "Starting deployment, takes about 10 minutes..."
