@@ -3,6 +3,7 @@
 * Deploy one of the "realtime" models in AI Foundry.
 * Create `.env` file in project root and add required variables
 * Deploy containerized app to Azure, or run locally
+* Installation of the Azure CLI if running locally, it is included in the Cloud Shell.
 
 ## Environment Variables
 
@@ -31,6 +32,8 @@ The provided `azdeploy.sh` creates the required resources in Azure:
 * Configures the web app for container image in ACR
 * Configures the web app environment variables
 * The script will provide the App Service endpoint
+
+> Note: You can run the script in PowerShell using the `bash azdeploy.sh` command, this command also let's you run the script in Bash without having to make it an executable.
 
 ## Local development
 
