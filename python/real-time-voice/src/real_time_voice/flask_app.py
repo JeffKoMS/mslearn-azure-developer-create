@@ -372,14 +372,21 @@ def _run_assistant_bg():
         import os
         from azure.core.credentials import AzureKeyCredential, TokenCredential
 
-        endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT") or "wss://api.voicelive.com/v1"
+        endpoint = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT")
         model = os.environ.get("VOICE_LIVE_MODEL")
         voice = os.environ.get("VOICE_LIVE_VOICE")
         instructions = os.environ.get("VOICE_LIVE_INSTRUCTIONS") or "You are a helpful voice assistant."
 
-        if not model or not voice:
-            set_state("error", "VOICE_LIVE_MODEL / VOICE_LIVE_VOICE env vars must be set")
+        # Validate required environment variables using helper
+        ok, msg = _validate_env()
+        if not ok:
+            set_state("error", msg)
             return
+
+        # At this point _validate_env() ensured these are present; cast for type-checkers
+        endpoint = cast(str, endpoint)
+        model = cast(str, model)
+        voice = cast(str, voice)
 
         # Use API key authentication for the web app (AZURE_VOICE_LIVE_API_KEY)
         api_key = os.environ.get("AZURE_VOICE_LIVE_API_KEY")
