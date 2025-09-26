@@ -13,9 +13,9 @@ param tags object = {}
 @description('Principal ID for role assignments')
 param principalId string
 
-// Create OpenAI service
-resource openaiService 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
-  name: 'openai-${resourceToken}'
+// Create AI Foundry resource (modern approach - no separate project needed for model deployment)
+resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
+  name: 'ai-foundry-${resourceToken}'
   location: location
   tags: union(tags, {
     'azd-service-name': 'gpt-realtime-model'
@@ -23,43 +23,45 @@ resource openaiService 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   sku: {
     name: 'S0'
   }
-  kind: 'OpenAI'
+  kind: 'AIServices'
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
-    customSubDomainName: 'openai-${resourceToken}'
+    allowProjectManagement: true
+    customSubDomainName: 'ai-foundry-${resourceToken}'
     publicNetworkAccess: 'Enabled'
-    networkAcls: {
-      defaultAction: 'Allow'
-    }
+    disableLocalAuth: false
   }
 }
 
-// Deploy GPT Realtime model for student experiments
-resource gptRealtimeDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  parent: openaiService
+// Deploy GPT Realtime model directly to AI Foundry
+resource gptRealtimeDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+  parent: aiFoundry
   name: 'gpt-realtime'
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 1
+  }
   properties: {
     model: {
       format: 'OpenAI'
       name: 'gpt-realtime'
-      version: 'latest'
+      version: '2025-08-28'
     }
     raiPolicyName: 'Microsoft.Default'
   }
-  sku: {
-    name: 'Standard'
-    capacity: 1
-  }
 }
 
-// Role assignment for OpenAI service
+// Role assignment for the user to access AI Foundry
 resource cognitiveServicesOpenAIUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
   scope: subscription()
   name: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
 }
 
-resource openaiRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: openaiService
-  name: guid(openaiService.id, principalId, cognitiveServicesOpenAIUser.id)
+resource aiFoundryRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aiFoundry
+  name: guid(aiFoundry.id, principalId, cognitiveServicesOpenAIUser.id)
   properties: {
     roleDefinitionId: cognitiveServicesOpenAIUser.id
     principalId: principalId
@@ -68,7 +70,7 @@ resource openaiRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-0
 }
 
 // Outputs
-output endpoint string = openaiService.properties.endpoint
-output apiKey string = openaiService.listKeys().key1
+output endpoint string = aiFoundry.properties.endpoint
+output apiKey string = aiFoundry.listKeys().key1
 output realtimeModelName string = gptRealtimeDeployment.name
-output openaiServiceName string = openaiService.name
+output foundryName string = aiFoundry.name

@@ -12,10 +12,6 @@ param location string
 @description('Id of the user or app to assign application roles')
 param principalId string
 
-@description('The type of principal (User or ServicePrincipal)')
-@allowed(['User', 'ServicePrincipal'])  
-param principalType string = 'User'
-
 @description('Name of the resource group for the AI project resources')
 param aiResourceGroupName string = ''
 
@@ -34,23 +30,9 @@ resource aiResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-// Deploy AI Foundry Project resources
-module aiProject 'ai-project.bicep' = {
-  name: 'ai-project'
-  scope: aiResourceGroup
-  params: {
-    location: location
-    environmentName: environmentName
-    resourceToken: resourceToken
-    tags: tags
-    principalId: principalId
-    principalType: principalType
-  }
-}
-
-// Deploy OpenAI service with GPT Realtime model
-module openai 'openai.bicep' = {
-  name: 'openai'
+// Deploy AI Foundry with GPT Realtime model - single resource approach
+module aiFoundry 'ai-foundry.bicep' = {
+  name: 'ai-foundry'
   scope: aiResourceGroup
   params: {
     location: location
@@ -66,12 +48,8 @@ output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output AZURE_RESOURCE_GROUP string = aiResourceGroup.name
 
-// AI-specific outputs
-output AZUREAI_PROJECT_NAME string = aiProject.outputs.projectName
-output AZUREAI_PROJECT_ID string = aiProject.outputs.projectId
-output AZUREAI_RESOURCE_GROUP_NAME string = aiResourceGroup.name
-
-// OpenAI outputs
-output AZURE_OPENAI_ENDPOINT string = openai.outputs.endpoint
-output AZURE_OPENAI_API_KEY string = openai.outputs.apiKey
-output AZURE_OPENAI_REALTIME_MODEL_NAME string = openai.outputs.realtimeModelName
+// AI Foundry outputs
+output AZURE_OPENAI_ENDPOINT string = aiFoundry.outputs.endpoint
+output AZURE_OPENAI_API_KEY string = aiFoundry.outputs.apiKey
+output AZURE_OPENAI_REALTIME_MODEL_NAME string = aiFoundry.outputs.realtimeModelName
+output AZUREAI_FOUNDRY_NAME string = aiFoundry.outputs.foundryName

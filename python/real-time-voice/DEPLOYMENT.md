@@ -1,12 +1,11 @@
-# GPT Realtime AI Resources for Student Experimentation
+# GPT Realtime Model Deployment for Student Experimentation
 
-This template provisions **ONLY the AI resources** students need to experiment with GPT realtime models. The Flask application runs locally.
+This template provisions **ONLY the AI model** students need to experiment with GPT realtime. The Flask application runs locally.
 
 ## Architecture
 
-- **Azure AI Foundry Project** - Workspace for AI experimentation  
-- **OpenAI Service** - With GPT realtime model deployed
-- **Local Flask App** - Students run this locally, connecting to Azure OpenAI
+- **Azure AI Foundry** - Modern AI services with GPT realtime model deployed
+- **Local Flask App** - Students run this locally, connecting to the deployed model
 
 ## Prerequisites
 
@@ -42,19 +41,18 @@ This template provisions **ONLY the AI resources** students need to experiment w
 
 The `infra/` folder contains minimal Bicep templates that provision:
 
-- **Azure AI Foundry Project** - Minimal project for student experimentation
-- **OpenAI Service** - With GPT realtime model deployed
-- **No extra services** - No Key Vault, Storage, or Container Registry needed
+- **Azure AI Foundry** - Modern AI services resource
+- **GPT Realtime Model** - Deployed and ready to use
+- **No extra dependencies** - No projects, storage, or other complex setup needed
 
 ## Environment Variables
 
 After deployment, these variables are available in your environment:
 
-- `AZUREAI_PROJECT_NAME` - Name of the AI Foundry Project
-- `AZUREAI_PROJECT_ID` - Full resource ID of the project
-- `AZURE_OPENAI_ENDPOINT` - OpenAI service endpoint
-- `AZURE_OPENAI_API_KEY` - OpenAI service API key
-- `AZURE_OPENAI_REALTIME_MODEL_NAME` - Deployed model name
+- `AZUREAI_FOUNDRY_NAME` - Name of the AI Foundry resource
+- `AZURE_OPENAI_ENDPOINT` - AI Foundry endpoint for the model
+- `AZURE_OPENAI_API_KEY` - Access key for the model
+- `AZURE_OPENAI_REALTIME_MODEL_NAME` - Deployed model name (gpt-realtime)
 
 ## Running the Local Flask Application
 
@@ -78,9 +76,9 @@ python flask_app.py
 - Ensure `azd provision` completed successfully before running `azd deploy`
 - Check that resources are tagged with `azd-service-name: gpt-realtime-model`
 
-### Missing OpenAI quota
-- Ensure your Azure subscription has OpenAI access enabled
-- Check quota availability for GPT-4o Realtime Preview in your region
+### Missing model quota
+- Ensure your Azure subscription has AI Foundry access enabled
+- Check quota availability for GPT Realtime in your region
 
 ### Permission errors
 - Ensure you have Contributor access to the subscription/resource group
