@@ -6,7 +6,7 @@ appsvc_plan="rtv-app-plan-5" # Needs to be unique
 webapp_name="rtv-webapp-5" # Needs to be unique
 image="rt-voice"
 tag="v1"
-azd_env_name="gpt-realtime-667" # Unique AZD environment name
+azd_env_name="gpt-realtime-668" # Unique AZD environment name
 
 clear
 echo "Starting deployment with AZD provisioning + App Service, takes about 15 minutes..."
@@ -69,11 +69,6 @@ read -n 1 -s -r
 # Step 2: Continue with App Service deployment
 echo
 echo "Step 2: Deploying Flask app to Azure App Service..."
-
-# Create/ensure resource group exists (may already be created by azd)
-echo "  - Ensuring resource group exists..."
-az group create -n $rg -l $location >/dev/null
-echo "  - Resource group ready"
 
 # Create ACR and build image from Dockerfile
 echo "  - Creating Azure Container Registry resource..."
