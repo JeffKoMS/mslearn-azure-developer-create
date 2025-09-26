@@ -34,9 +34,9 @@ resource aiResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-// Deploy AI Hub and Project resources
-module aiHub 'ai-hub.bicep' = {
-  name: 'ai-hub'
+// Deploy AI Foundry Project resources
+module aiProject 'ai-project.bicep' = {
+  name: 'ai-project'
   scope: aiResourceGroup
   params: {
     location: location
@@ -67,8 +67,8 @@ output AZURE_TENANT_ID string = tenant().tenantId
 output AZURE_RESOURCE_GROUP string = aiResourceGroup.name
 
 // AI-specific outputs
-output AZUREAI_HUB_NAME string = aiHub.outputs.hubName
-output AZUREAI_PROJECT_NAME string = aiHub.outputs.projectName
+output AZUREAI_PROJECT_NAME string = aiProject.outputs.projectName
+output AZUREAI_PROJECT_ID string = aiProject.outputs.projectId
 output AZUREAI_RESOURCE_GROUP_NAME string = aiResourceGroup.name
 
 // OpenAI outputs

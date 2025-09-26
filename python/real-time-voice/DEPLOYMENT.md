@@ -1,14 +1,12 @@
-# GPT Realtime Voice Application with Azure AI Foundry
+# GPT Realtime AI Resources for Student Experimentation
 
-This application demonstrates real-time voice interaction using OpenAI's GPT-4o Realtime model deployed on Azure AI Foundry.
+This template provisions **ONLY the AI resources** students need to experiment with GPT realtime models. The Flask application runs locally.
 
 ## Architecture
 
-The solution includes:
-
-- **Flask Application** (`src/real_time_voice/`) - Web interface for voice interaction
-- **Azure Infrastructure** (`infra/`) - Bicep templates for Azure AI resources
-- **Azure Developer CLI** - Automated provisioning and deployment
+- **Azure AI Foundry Project** - Workspace for AI experimentation  
+- **OpenAI Service** - With GPT realtime model deployed
+- **Local Flask App** - Students run this locally, connecting to Azure OpenAI
 
 ## Prerequisites
 
@@ -17,62 +15,61 @@ The solution includes:
 - Azure subscription with OpenAI access
 - Python 3.9+
 
-## Quick Start
+## Quick Start - Provision AI Resources Only
 
-### Option 1: Use this template (with infrastructure)
-
-1. **Clone and initialize**:
+1. **Initialize environment** (choose a descriptive name):
    ```bash
-   # If starting from this repository
-   azd env new <your-environment-name>
+   azd env new gpt-realtime-lab
+   # or: azd env new your-name-gpt-experiment
    ```
+   
+   **Important**: This name becomes part of your Azure resource names!
 
 2. **Set your resource group** (optional):
    ```bash
    azd env set AZURE_RESOURCE_GROUP "rg-your-name-gpt"
    ```
 
-3. **Login and deploy**:
+3. **Login and provision AI resources**:
    ```bash
    az login
-   azd up
+   azd provision
    ```
 
-### Option 2: Use the official Azure AI Foundry starter (recommended for beginners)
-
-```bash
-azd init -t Azure-Samples/azd-aistudio-starter
-azd up
-```
+**Important**: Do NOT run `azd deploy` - there is no application to deploy!
 
 ## What gets created
 
-The `infra/` folder contains Bicep templates that provision:
+The `infra/` folder contains minimal Bicep templates that provision:
 
-- **Azure AI Hub** - Central workspace for AI projects
-- **Azure AI Project** - Project container for models and deployments  
-- **OpenAI Service** - With GPT-4o Realtime Preview model deployed
-- **Supporting services** - Key Vault, Storage Account, Container Registry
-- **Proper tagging** - All resources tagged for azd service discovery
+- **Azure AI Foundry Project** - Minimal project for student experimentation
+- **OpenAI Service** - With GPT realtime model deployed
+- **No extra services** - No Key Vault, Storage, or Container Registry needed
 
 ## Environment Variables
 
 After deployment, these variables are available in your environment:
 
-- `AZUREAI_HUB_NAME` - Name of the AI Hub
-- `AZUREAI_PROJECT_NAME` - Name of the AI Project
+- `AZUREAI_PROJECT_NAME` - Name of the AI Foundry Project
+- `AZUREAI_PROJECT_ID` - Full resource ID of the project
 - `AZURE_OPENAI_ENDPOINT` - OpenAI service endpoint
 - `AZURE_OPENAI_API_KEY` - OpenAI service API key
 - `AZURE_OPENAI_REALTIME_MODEL_NAME` - Deployed model name
 
-## Running the Application
+## Running the Local Flask Application
 
-The Flask application will be automatically configured to use the deployed Azure OpenAI service. Set the required environment variables in your Flask app:
+After provisioning, configure your local Flask app with the Azure OpenAI details:
 
 ```bash
 export AZURE_VOICE_LIVE_ENDPOINT="<from azd output>"
-export AZURE_VOICE_LIVE_API_KEY="<from azd output>"
-export VOICE_LIVE_MODEL="gpt-4o-realtime-preview"
+export AZURE_VOICE_LIVE_API_KEY="<from azd output>"  
+export VOICE_LIVE_MODEL="gpt-realtime"
+```
+
+Then run the Flask app locally:
+```bash
+cd src/real_time_voice
+python flask_app.py
 ```
 
 ## Troubleshooting
@@ -97,11 +94,13 @@ azd env new <name>              # Create new environment
 azd env list                    # List environments
 azd env select <name>           # Switch environments
 
-# Deployment
-azd up                          # Provision + deploy everything
-azd provision                   # Provision infrastructure only
-azd deploy                      # Deploy application only
+# AI Resource provisioning
+azd provision                   # Provision AI resources only
 azd down                        # Delete all resources
+
+# DO NOT USE:
+# azd deploy                    # Not applicable - no app deployment
+# azd up                        # Use azd provision instead
 
 # Monitoring
 azd monitor                     # Open Azure Portal for resources

@@ -1,6 +1,6 @@
-# Student template: GPT Realtime model deployment with Azure AI Foundry
-# This template provisions Azure AI Hub, AI Project, and OpenAI service with GPT-4o Realtime model
-# The infrastructure is defined in the infra/ folder using Bicep templates
+# Student template: GPT Realtime model resources for AI Foundry
+# This template ONLY provisions AI resources - it does NOT deploy the application
+# Students will use the OpenAI endpoint directly in their local development
 
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
@@ -8,29 +8,27 @@ name: gpt-realtime-model
 metadata:
   template: azd-init@1.19.0
 
-services:
-  # GPT Realtime model service - deployed to Azure AI Foundry
-  gpt-realtime-model:
-    project: ./src/real_time_voice
-    language: python
-    host: containerapp
+# NO SERVICES - This template only provisions infrastructure
+# Students will run the Flask app locally and connect to the deployed OpenAI service
 
-# Student workflow
-# 1. Set your resource group (optional - azd can create one):
+# Student workflow - PROVISION AI RESOURCES ONLY
+# 1. Initialize environment with a descriptive name:
+#    azd env new gpt-realtime-lab  (or your-name-gpt-experiment)
+# 2. Set your resource group (optional):
 #    azd env set AZURE_RESOURCE_GROUP "rg-your-name-gpt"
-# 2. Initialize environment: azd env new <environment-name>
-# 3. Login to Azure: az login
-# 4. Provision infrastructure and deploy: azd up
+# 3. Login to Azure: az login  
+# 4. Provision AI resources: azd provision
 #
-# Alternative commands:
-# - Provision only: azd provision
-# - Deploy only: azd deploy
+# NOTE: The environment name becomes part of your Azure resource names
+# Choose something descriptive like "gpt-realtime-lab" not just "dev"
 #
-# The infra/ folder contains Bicep templates that create:
-# - Azure AI Hub with required dependencies (Key Vault, Storage, etc.)
-# - Azure AI Project for model deployment
-# - OpenAI service with GPT-4o Realtime Preview model
-# - Proper resource tagging for azd service discovery
+# After provisioning, you'll get:
+# - Azure AI Foundry Project for experimentation
+# - OpenAI service with GPT realtime model deployed
+# - Endpoint and API key for your local Flask app
 #
-# All resources are tagged with 'azd-service-name: gpt-realtime-model'
-# so azd can find and deploy to them automatically.
+# The Flask app runs LOCALLY - not deployed to Azure
+# Students use the endpoint/API key in their local development environment
+#
+# DO NOT run 'azd deploy' - there is no application to deploy
+# This template only creates the AI resources students need

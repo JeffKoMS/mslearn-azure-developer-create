@@ -33,15 +33,15 @@ resource openaiService 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   }
 }
 
-// Deploy GPT-4o Realtime Preview model
+// Deploy GPT Realtime model for student experiments
 resource gptRealtimeDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openaiService
-  name: 'gpt-4o-realtime-preview'
+  name: 'gpt-realtime'
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4o-realtime-preview'
-      version: '2024-10-01'
+      name: 'gpt-realtime'
+      version: 'latest'
     }
     raiPolicyName: 'Microsoft.Default'
   }
