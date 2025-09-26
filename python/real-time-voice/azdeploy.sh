@@ -1,12 +1,12 @@
 #!/bin/bash
-rg="rg-exercises" # Replace with your resource group
+rg="rg-rtvexercise" # Replace with your resource group
 location="eastus2" # Or a location near you
-acr_name="acrrealtime108" # Needs to be unique
-appsvc_plan="rtv-app-plan-5" # Needs to be unique
-webapp_name="rtv-webapp-5" # Needs to be unique
+acr_name="acrrealtime109" # Needs to be unique
+appsvc_plan="rtv-app-plan-6" # Needs to be unique
+webapp_name="rtv-webapp-6" # Needs to be unique
 image="rt-voice"
 tag="v1"
-azd_env_name="gpt-realtime-668" # Unique AZD environment name
+azd_env_name="gpt-realtime-22" # Unique AZD environment name
 
 clear
 echo "Starting deployment with AZD provisioning + App Service, takes about 15 minutes..."
@@ -59,12 +59,6 @@ else
 fi
 
 echo "  - AI Foundry provisioning complete!"
-
-# Pause for testing - allows breaking out after model provisioning
-echo
-echo "🔄 AI Foundry and GPT Realtime model provisioning completed successfully!"
-echo "📋 Press any key to continue with App Service deployment, or Ctrl+C to exit here for testing..."
-read -n 1 -s -r
 
 # Step 2: Continue with App Service deployment
 echo
