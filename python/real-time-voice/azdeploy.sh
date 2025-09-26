@@ -157,7 +157,7 @@ acr_pass=$(az acr credential show -n $acr_name --query passwords[0].value -o tsv
 acr_login_server=$(az acr show --name $acr_name --query "loginServer" --output tsv | tr -d '\r')
 acr_image=${acr_login_server}/${image}:${tag}
 
-echo "  - Creating App Service plan: $appsvc_plan (Linux, B1)..."
+echo "  - Creating App Service plan: $appsvc_plan Linux B1..."
 az appservice plan create --name "$appsvc_plan" \
     --resource-group $rg \
     --is-linux \
