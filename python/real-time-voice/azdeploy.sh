@@ -6,19 +6,63 @@ appsvc_plan="rtv-app-plan-5" # Needs to be unique
 webapp_name="rtv-webapp-5" # Needs to be unique
 image="rt-voice"
 tag="v1"
+azd_env_name="gpt-realtime-deployment" # AZD environment name
 
 clear
-echo "Starting deployment, takes about 10 minutes..."
+echo "Starting deployment with AZD provisioning + App Service, takes about 15 minutes..."
 
-# Create resource group
+# Step 1: Provision AI Foundry with GPT Realtime model using AZD
 echo
-echo "Creating resource group..."
+echo "Step 1: Provisioning AI Foundry with GPT Realtime model..."
+echo "  - Setting up AZD environment..."
+azd env new $azd_env_name --confirm >/dev/null 2>&1 || azd env select $azd_env_name >/dev/null 2>&1
+azd env set AZURE_LOCATION $location >/dev/null
+azd env set AZURE_RESOURCE_GROUP $rg >/dev/null
+
+echo "  - Provisioning AI resources (takes 2-3 minutes)..."
+azd provision --no-prompt >/dev/null
+
+echo "  - Retrieving AI Foundry endpoint and API key..."
+endpoint=$(azd env get-values --output json | jq -r '.AZURE_OPENAI_ENDPOINT')
+api_key=$(azd env get-values --output json | jq -r '.AZURE_OPENAI_API_KEY')
+
+if [ "$endpoint" = "null" ] || [ "$endpoint" = "" ] || [ "$api_key" = "null" ] || [ "$api_key" = "" ]; then
+    echo "ERROR: Failed to retrieve AI Foundry endpoint or API key from azd"
+    echo "Please check the azd provision output and try again"
+    exit 1
+fi
+
+echo "  - Updating .env file with AI Foundry credentials..."
+# Update .env file with the retrieved values
+if [ -f .env ]; then
+    # Use sed to update existing values or add them if they don't exist
+    sed -i "s|^AZURE_VOICE_LIVE_ENDPOINT=.*|AZURE_VOICE_LIVE_ENDPOINT=\"$endpoint\"|" .env
+    sed -i "s|^AZURE_VOICE_LIVE_API_KEY=.*|AZURE_VOICE_LIVE_API_KEY=\"$api_key\"|" .env
+    echo "  - .env file updated with AI Foundry credentials"
+else
+    echo "ERROR: .env file not found"
+    exit 1
+fi
+
+echo "  - AI Foundry provisioning complete!"
+
+# Pause for testing - allows breaking out after model provisioning
+echo
+echo "🔄 AI Foundry and GPT Realtime model provisioning completed successfully!"
+echo "📋 Press any key to continue with App Service deployment, or Ctrl+C to exit here for testing..."
+read -n 1 -s -r
+
+# Step 2: Continue with App Service deployment
+echo
+echo "Step 2: Deploying Flask app to Azure App Service..."
+
+# Create/ensure resource group exists (may already be created by azd)
+echo "  - Ensuring resource group exists..."
 az group create -n $rg -l $location >/dev/null
-echo "  - Resource group created, or already exists."
+echo "  - Resource group ready"
 
 # Create ACR and build image from Dockerfile
-echo
-echo "Creating Azure Container Registry resource..."
+echo "  - Creating Azure Container Registry resource..."
 az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true >/dev/null
 echo "  - Resource created"
 echo "  - Starting image build process in 10 seconds to reduce build failures."
@@ -57,8 +101,10 @@ if [ $retry_count -eq $max_retries ]; then
     exit 1
 fi
 
+echo "  - Container image build complete!"
+
 echo
-echo "Begin Azure App Service deployment"
+echo "Step 3: Configuring Azure App Service with updated credentials..."
 
 echo "  - Gathering environment variables from .env file for App Service deployment.."
 # Parse the .env file exists in the repo root, and bring values into the  script environment 
@@ -147,11 +193,22 @@ az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
 sleep 15 #Time for the service to restart and pul image
 
 
-# Show final URL
+# Show final URL and cleanup info
 echo
-echo "Deployment complete."
-echo "Your app should be available at: https://${webapp_name}.azurewebsites.net"
-echo "It may take a few minutes for the page to load."
+echo "🎉 Deployment complete!"
+echo
+echo "✅ AI Foundry with GPT Realtime model: PROVISIONED"
+echo "✅ Flask app deployed to App Service: READY"
+echo "✅ .env file updated with live credentials: DONE"
+echo
+echo "🌐 Your app is available at: https://${webapp_name}.azurewebsites.net"
+echo "📝 Local development: Updated .env file ready for local Flask testing"
+echo
+echo "⏱️  App may take 2-3 minutes to fully start up after deployment."
+echo
+echo "🧹 To clean up resources later:"
+echo "   azd env select $azd_env_name && azd down"
+echo "   az group delete --name $rg --yes --no-wait"
 echo
 
 

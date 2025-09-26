@@ -18,11 +18,12 @@ This template provisions **ONLY the AI model** students need to experiment with 
 
 1. **Initialize environment** (choose a descriptive name):
    ```bash
-   azd env new gpt-realtime-lab
-   # or: azd env new your-name-gpt-experiment
+   azd env new gpt-realtime-lab --confirm
+   # or: azd env new your-name-gpt-experiment --confirm
    ```
    
-   **Important**: This name becomes part of your Azure resource names!
+   **Important**: This name becomes part of your Azure resource names!  
+   The `--confirm` flag sets this as your default environment without prompting.
 
 2. **Set your resource group** (optional):
    ```bash
