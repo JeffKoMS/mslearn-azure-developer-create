@@ -1,12 +1,12 @@
 #!/bin/bash
-rg="rg-rtvexercise" # Replace with your resource group
+rg="rg-exercises" # Replace with your resource group
 location="eastus2" # Or a location near you
 acr_name="acrrealtime108" # Needs to be unique
 appsvc_plan="rtv-app-plan-5" # Needs to be unique
 webapp_name="rtv-webapp-5" # Needs to be unique
 image="rt-voice"
 tag="v1"
-azd_env_name="gpt-realtime-deployment" # AZD environment name
+azd_env_name="gpt-realtime-667" # Unique AZD environment name
 
 clear
 echo "Starting deployment with AZD provisioning + App Service, takes about 15 minutes..."
@@ -15,12 +15,26 @@ echo "Starting deployment with AZD provisioning + App Service, takes about 15 mi
 echo
 echo "Step 1: Provisioning AI Foundry with GPT Realtime model..."
 echo "  - Setting up AZD environment..."
-azd env new $azd_env_name --confirm >/dev/null 2>&1 || azd env select $azd_env_name >/dev/null 2>&1
+# Clear local azd state only (safe for students - doesn't delete Azure resources)
+rm -rf ~/.azd 2>/dev/null || true
+# Also clear any project-level azd state
+rm -rf .azure 2>/dev/null || true
+
+# Create fresh environment with unique name
+timeout 5 azd env new $azd_env_name --confirm >/dev/null 2>&1 || azd env new $azd_env_name >/dev/null 2>&1
 azd env set AZURE_LOCATION $location >/dev/null
 azd env set AZURE_RESOURCE_GROUP $rg >/dev/null
+echo "  - AZD environment '$azd_env_name' created (fresh state)"
 
-echo "  - Provisioning AI resources (takes 2-3 minutes)..."
-azd provision --no-prompt >/dev/null
+echo "  - Provisioning AI resources (forcing new deployment)..."
+# Ensure azd is authenticated (use existing Azure CLI auth)
+azd auth login 2>/dev/null || true
+
+# Force a completely fresh deployment by combining multiple techniques
+azd config set alpha.infrastructure.deployment.name "azd-gpt-realtime-$(date +%s)"
+# Clear any cached deployment state and force deployment
+azd env refresh --no-prompt 2>/dev/null || true
+azd provision 
 
 echo "  - Retrieving AI Foundry endpoint and API key..."
 endpoint=$(azd env get-values --output json | jq -r '.AZURE_OPENAI_ENDPOINT')
@@ -141,12 +155,6 @@ env_vars=(
     VOICE_LIVE_INSTRUCTIONS="${VOICE_LIVE_INSTRUCTIONS}"
 )
 
-# Add performance settings to the environment variables
-perf_vars=(
-    WEBSITES_ENABLE_APP_SERVICE_STORAGE="false"
-    WEBSITES_CONTAINER_START_TIME_LIMIT="1800"
-)
-
 echo "  - Retrieving ACR credentials so App Service can access the container image..."
 # Use the retrieved ACR credentials to allow AppSvc to pull the image.
 acr_user=$(az acr credential show -n $acr_name --query username -o tsv | tr -d '\r')  
@@ -176,7 +184,7 @@ az webapp config container set \
     --container-registry-user "$acr_user" \
     --container-registry-password "$acr_pass" >/dev/null
 
-echo "  - Configuring app settings and performance optimizations..."
+echo "  - Configuring app settings..."
 az webapp config set --resource-group "$rg" \
     --name "$webapp_name" \
     --startup-file "" \
@@ -185,12 +193,13 @@ az webapp config set --resource-group "$rg" \
 echo "  - Applying environment variables to web app..."
 az webapp config appsettings set --resource-group "$rg" \
     --name "$webapp_name" \
-    --settings "${env_vars[@]}" "${perf_vars[@]}" >/dev/null
+    --settings "${env_vars[@]}" >/dev/null
 
 # Start / Restart to ensure container is pulled
+sleep 5
 echo "  - Restarting Web App to ensure new container image is pulled..."
 az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
-sleep 15 #Time for the service to restart and pul image
+sleep 15 #Time for the service to restart and pull image
 
 
 # Show final URL and cleanup info
@@ -199,16 +208,7 @@ echo "🎉 Deployment complete!"
 echo
 echo "✅ AI Foundry with GPT Realtime model: PROVISIONED"
 echo "✅ Flask app deployed to App Service: READY"
-echo "✅ .env file updated with live credentials: DONE"
-echo
 echo "🌐 Your app is available at: https://${webapp_name}.azurewebsites.net"
-echo "📝 Local development: Updated .env file ready for local Flask testing"
 echo
 echo "⏱️  App may take 2-3 minutes to fully start up after deployment."
 echo
-echo "🧹 To clean up resources later:"
-echo "   azd env select $azd_env_name && azd down"
-echo "   az group delete --name $rg --yes --no-wait"
-echo
-
-
