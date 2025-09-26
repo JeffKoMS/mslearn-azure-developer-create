@@ -1,0 +1,36 @@
+# Student template: GPT Realtime model deployment with Azure AI Foundry
+# This template provisions Azure AI Hub, AI Project, and OpenAI service with GPT-4o Realtime model
+# The infrastructure is defined in the infra/ folder using Bicep templates
+
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: gpt-realtime-model
+metadata:
+  template: azd-init@1.19.0
+
+services:
+  # GPT Realtime model service - deployed to Azure AI Foundry
+  gpt-realtime-model:
+    project: ./src/real_time_voice
+    language: python
+    host: containerapp
+
+# Student workflow
+# 1. Set your resource group (optional - azd can create one):
+#    azd env set AZURE_RESOURCE_GROUP "rg-your-name-gpt"
+# 2. Initialize environment: azd env new <environment-name>
+# 3. Login to Azure: az login
+# 4. Provision infrastructure and deploy: azd up
+#
+# Alternative commands:
+# - Provision only: azd provision
+# - Deploy only: azd deploy
+#
+# The infra/ folder contains Bicep templates that create:
+# - Azure AI Hub with required dependencies (Key Vault, Storage, etc.)
+# - Azure AI Project for model deployment
+# - OpenAI service with GPT-4o Realtime Preview model
+# - Proper resource tagging for azd service discovery
+#
+# All resources are tagged with 'azd-service-name: gpt-realtime-model'
+# so azd can find and deploy to them automatically.

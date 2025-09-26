@@ -12,3 +12,4 @@ wheels/
 #azdeploy.sh
 drun.sh
 dbuild.sh
+.azure
