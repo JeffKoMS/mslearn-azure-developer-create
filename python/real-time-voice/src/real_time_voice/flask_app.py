@@ -163,7 +163,7 @@ class _SuppressHTTP200(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401 - simple filter
         msg = record.getMessage()
         # Typical pattern: '127.0.0.1 - - [timestamp] "POST /audio-chunk HTTP/1.1" 200 -'
-        # We suppress any line that clearly denotes an HTTP 200 access log.
+        # Suppress any line that clearly denotes an HTTP 200 access log.
         if '" 200 ' in msg:
             return False
         return True
@@ -196,8 +196,13 @@ def _validate_env() -> Tuple[bool, str]:
 
 
 class BasicVoiceAssistant:
-    """Minimal assistant implementation for VoiceLive API."""
+    """Minimal assistant implementation for VoiceLive API.
+    
+    Handles real-time voice conversation using Azure's VoiceLive service.
+    Manages connection, session configuration, and event processing.
+    """
 
+    # Initialize VoiceLive assistant with Azure service configuration.
     def __init__(
         self,
         endpoint: str,
@@ -213,13 +218,12 @@ class BasicVoiceAssistant:
         self.voice = voice
         self.instructions = instructions
         self.connection = None
-        # When True, server will suppress broadcasting RESPONSE_AUDIO_DELTA events
-        # for the current response because an interrupt/cancel was requested.
-        self._response_cancelled = False
+        self._response_cancelled = False # When True, server will suppress broadcasting response events
         self._stopping = False
         self.state_callback = state_callback or (lambda *_: None)
 
     async def start(self):
+        # Import VoiceLive SDK components for async connection and models
         from azure.ai.voicelive.aio import connect  # type: ignore
         from azure.ai.voicelive.models import (
             RequestSession,
@@ -228,10 +232,12 @@ class BasicVoiceAssistant:
             Modality,
             AudioFormat,
         )  # type: ignore
+        
         verbose_val = __import__('os').environ.get('VOICE_LIVE_VERBOSE', '0').strip()
         verbose = bool(int(verbose_val)) if verbose_val.isdigit() else False
         try:
             _broadcast({"type": "log", "level": "info", "msg": f"Connecting to VoiceLive endpoint={self.endpoint} model={self.model} voice={self.voice}"})
+            # Establish async connection to Azure VoiceLive service with optimized settings
             async with connect(
                 endpoint=self.endpoint,
                 credential=self.credential,
@@ -242,12 +248,13 @@ class BasicVoiceAssistant:
                 # Reset cancellation flag at the start of a new connection/session
                 self._response_cancelled = False
 
-                # Determine voice config
+                # Configure voice: use AzureStandardVoice for locale-specific voices, plain string for others
                 if self.voice.startswith("en-") or "-" in self.voice:
                     voice_cfg: Union[str, AzureStandardVoice] = AzureStandardVoice(name=self.voice, type="azure-standard")
                 else:
                     voice_cfg = self.voice
 
+                # Configure VoiceLive session with audio/text modalities and voice activity detection
                 session_config = RequestSession(
                     modalities=[Modality.TEXT, Modality.AUDIO],
                     instructions=self.instructions,
@@ -258,7 +265,7 @@ class BasicVoiceAssistant:
                 )
                 await conn.session.update(session=session_config)
 
-                # Main event processing loop
+                # Main event processing loop - handle all VoiceLive server events
                 async for event in conn:
                     if self._stopping:
                         break
@@ -274,6 +281,7 @@ class BasicVoiceAssistant:
         self.connection = None
 
     async def append_audio(self, audio_b64: str):
+        """Send base64-encoded audio data to VoiceLive input buffer."""
         if not self.connection:
             return
         try:
@@ -283,12 +291,14 @@ class BasicVoiceAssistant:
 
     async def _handle_event(self, event, conn, verbose=False):
         """Handle VoiceLive events with clear separation by event type."""
+        # Import event types for processing different VoiceLive server events
         from azure.ai.voicelive.models import ServerEventType
         
         event_type = event.type
         if verbose:
             _broadcast({"type": "log", "level": "debug", "event_type": str(event_type)})
         
+        # Route VoiceLive server events to appropriate handlers
         if event_type == ServerEventType.SESSION_UPDATED:
             await self._handle_session_updated()
         elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
@@ -317,7 +327,7 @@ class BasicVoiceAssistant:
             # Always stop client audio playback when user speaks
             _broadcast({"type": "control", "action": "stop_playback"})
             
-            # Only cancel if assistant is actively responding
+            # Cancel VoiceLive response if assistant is actively responding (enables interruption)
             current_state = assistant_state.get("state")
             if current_state in {"assistant_speaking", "processing"}:
                 self._response_cancelled = True
@@ -344,7 +354,7 @@ class BasicVoiceAssistant:
         if assistant_state.get("state") != "assistant_speaking":
             self.state_callback("assistant_speaking", "Assistant speaking…")
         
-        # Broadcast audio delta to clients
+        # Extract and broadcast VoiceLive audio delta as base64 to WebSocket clients
         audio_data = getattr(event, "delta", None)
         if audio_data:
             audio_b64 = base64.b64encode(audio_data).decode("utf-8")

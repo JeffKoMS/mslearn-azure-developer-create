@@ -121,7 +121,7 @@ echo "  - Starting image build process in 10 seconds to reduce build failures."
 sleep 10 # To give time for the ACR service to be ready for build operations
 
 echo
-echo "Building image in ACR...(takes 3-5 minutes per attempt)"
+echo "  - Building image in ACR...(takes 3-5 minutes per attempt)"
 # Build image with retry logic
 max_retries=3
 retry_count=0
