@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to deploy the Flask app to Azure App Service using a container from ACR
-# and provision AI Foundry with GPT Realtime model using AZD.
+# and provision AI Foundry with gtp-realtime model using AZD.
 
 # Only change the rg and location variables below if needed.
 
@@ -9,6 +9,17 @@ rg="rg-rtvexercise2" # Replace with your resource group
 location="swedencentral" # Or a location near you
 
 # Don't change anything below this line unless you know what you're doing.
+
+# Create the .env file
+cat > .env << 'EOF'
+# Do not change any settings in this file. Endpoint and API key are set automatically during deployment
+AZURE_VOICE_LIVE_ENDPOINT=""
+AZURE_VOICE_LIVE_API_KEY=""
+VOICE_LIVE_MODEL="gpt-realtime"
+VOICE_LIVE_VOICE="alloy"
+VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
+VOICE_LIVE_VERBOSE="" #Suppresses excessive logging to the terminal if running locally
+EOF
 
 # Use the current console username plus a short 4-char deterministic hash to set service names.
 user_name="$(whoami 2>/dev/null || echo user)"
