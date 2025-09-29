@@ -1,6 +1,6 @@
 # GPT Realtime Model Deployment for Student Experimentation
 
-This template provisions **ONLY the AI model** students need to experiment with GPT realtime. The Flask application runs locally.
+This template provisions **ONLY the AI model** students need to experiment with GPT realtime. 
 
 ## Architecture
 
