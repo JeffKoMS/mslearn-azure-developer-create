@@ -5,18 +5,18 @@
 
 # Only change the rg and location variables below if needed.
 
-rg="rg-rtvexercise2" # Replace with your resource group
-location="swedencentral" # Or a location near you
+rg="rg-rtvexercise" # Replace with your resource group
+location="eastus2" # Or a location near you
 
 # Don't change anything below this line unless you know what you're doing.
 
 # Create the .env file
 cat > .env << 'EOF'
-# Do not change any settings in this file. Endpoint and API key are set automatically during deployment
+# Do not change any settings in this file. Endpoint, API key, and model name are set automatically during deployment
 AZURE_VOICE_LIVE_ENDPOINT=""
 AZURE_VOICE_LIVE_API_KEY=""
-VOICE_LIVE_MODEL="gpt-realtime"
-VOICE_LIVE_VOICE="alloy"
+VOICE_LIVE_MODEL=""
+VOICE_LIVE_VOICE="en-US-JennyNeural"
 VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
 VOICE_LIVE_VERBOSE="" #Suppresses excessive logging to the terminal if running locally
 EOF
@@ -85,12 +85,13 @@ azd config set alpha.infrastructure.deployment.name "azd-gpt-realtime-$(date +%s
 azd env refresh --no-prompt 2>/dev/null || true
 azd provision 
 
-echo "  - Retrieving AI Foundry endpoint and API key..."
+echo "  - Retrieving AI Foundry endpoint, API key, and model name..."
 endpoint=$(azd env get-values --output json | jq -r '.AZURE_OPENAI_ENDPOINT')
 api_key=$(azd env get-values --output json | jq -r '.AZURE_OPENAI_API_KEY')
+model_name=$(azd env get-values --output json | jq -r '.AZURE_OPENAI_REALTIME_MODEL_NAME')
 
-if [ "$endpoint" = "null" ] || [ "$endpoint" = "" ] || [ "$api_key" = "null" ] || [ "$api_key" = "" ]; then
-    echo "ERROR: Failed to retrieve AI Foundry endpoint or API key from azd"
+if [ "$endpoint" = "null" ] || [ "$endpoint" = "" ] || [ "$api_key" = "null" ] || [ "$api_key" = "" ] || [ "$model_name" = "null" ] || [ "$model_name" = "" ]; then
+    echo "ERROR: Failed to retrieve AI Foundry endpoint, API key, or model name from azd"
     echo "Please check the azd provision output and try again"
     exit 1
 fi
@@ -101,7 +102,8 @@ if [ -f .env ]; then
     # Use sed to update existing values or add them if they don't exist
     sed -i "s|^AZURE_VOICE_LIVE_ENDPOINT=.*|AZURE_VOICE_LIVE_ENDPOINT=\"$endpoint\"|" .env
     sed -i "s|^AZURE_VOICE_LIVE_API_KEY=.*|AZURE_VOICE_LIVE_API_KEY=\"$api_key\"|" .env
-    echo "  - .env file updated with AI Foundry credentials"
+    sed -i "s|^VOICE_LIVE_MODEL=.*|VOICE_LIVE_MODEL=\"$model_name\"|" .env
+    echo "  - .env file updated with AI Foundry credentials and model name"
 else
     echo "ERROR: .env file not found"
     exit 1
@@ -235,7 +237,7 @@ az webapp config appsettings set --resource-group "$rg" \
     --settings "${env_vars[@]}" >/dev/null
 
 # Start / Restart to ensure container is pulled
-sleep 5
+sleep 10
 echo "  - Restarting Web App to ensure new container image is pulled..."
 az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
 sleep 15 #Time for the service to restart and pull image
@@ -249,5 +251,5 @@ echo "✅ AI Foundry with GPT Realtime model: PROVISIONED"
 echo "✅ Flask app deployed to App Service: READY"
 echo "🌐 Your app is available at: https://${webapp_name}.azurewebsites.net"
 echo
-echo "⏱️  App may take 2-3 minutes to fully start up after deployment."
+echo "⏱️  App may take a few minutes to start after loading the web page."
 echo

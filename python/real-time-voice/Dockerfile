@@ -31,5 +31,5 @@ ENV PORT=5000
 EXPOSE 5000
 
 # Use gunicorn to serve the Flask app. The module exposes `app` at
-# real_time_voice.flask_app:app so gunicorn can import it directly.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "real_time_voice.flask_app:app", "--workers", "1", "--threads", "4"]
+# src.flask_app:app so gunicorn can import it directly.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "src.flask_app:app", "--workers", "1", "--threads", "4"]

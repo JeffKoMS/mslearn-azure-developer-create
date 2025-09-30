@@ -38,7 +38,7 @@ resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
 // Deploy GPT Realtime model directly to AI Foundry
 resource gptRealtimeDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: aiFoundry
-  name: 'gpt-realtime'
+  name: 'gpt-4o'
   sku: {
     name: 'GlobalStandard'
     capacity: 1
@@ -46,8 +46,8 @@ resource gptRealtimeDeployment 'Microsoft.CognitiveServices/accounts/deployments
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-realtime'
-      version: '2025-08-28'
+      name: 'gpt-4o'
+      version: '2024-11-20'
     }
     raiPolicyName: 'Microsoft.Default'
   }
