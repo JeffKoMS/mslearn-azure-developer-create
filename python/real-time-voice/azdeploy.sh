@@ -324,10 +324,10 @@ az webapp config set --resource-group "$rg" \
     --always-on true >/dev/null
 
 # Start / Restart to ensure container is pulled
-sleep 10
+sleep 5
 echo "  - Restarting Web App to ensure new container image is pulled..."
 az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
-sleep 15 #Time for the service to restart and pull image
+sleep 10 #Time for the service to restart and pull image
 
 
 # Show final URL and cleanup info
