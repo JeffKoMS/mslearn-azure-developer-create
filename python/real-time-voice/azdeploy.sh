@@ -1,21 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script to deploy the Flask app to Azure App Service using a container from ACR
 # and provision AI Foundry with gtp-realtime model using AZD.
 
-# Only change the rg and location variables below if needed.
+# Only change the rg (resource group) and location variables below if needed.
 
-rg="rg-rtvexercise" # Replace with your resource group
+rg="rg-voicelive" # Replace with your resource group
 location="eastus2" # Or a location near you
 
-# Don't change anything below this line unless you know what you're doing.
+
+# ============================================================================
+# DON'T CHANGE ANYTHING BELOW THIS LINE.
+# ============================================================================
+
 
 # ============================================================================
 # Deployment Mode Selection
 # ============================================================================
+clear
 echo "Select deployment mode:"
 echo "  1) Full deployment (AI Foundry + Container + App Service) - ~15 minutes"
-echo "  2) Container update only (rebuild and redeploy image) - ~5 minutes"
+echo "  2) Container update only (requires full deployment first) - ~5 minutes"
 echo ""
 read -p "Enter choice (1 or 2): " deploy_mode
 
@@ -92,7 +97,7 @@ if [ "$deploy_mode" = "2" ]; then
     max_retries=3
     retry_count=0
 
-    while [ $retry_count -lt $max_retries ]; do
+    while [ "${retry_count}" -lt "${max_retries}" ]; do
         echo "  - Attempt $((retry_count + 1)) of $max_retries: building image..."
         
         az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile . >/dev/null 2>&1
@@ -199,7 +204,7 @@ echo "  - AI Foundry provisioning complete!"
 
 # Step 2: Continue with App Service deployment
 echo
-echo "Step 2: Deploying Flask app to Azure App Service..."
+echo "Step 2: Create ACR and App Service resources..."
 
 # Create ACR and build image from Dockerfile
 echo "  - Creating Azure Container Registry resource..."
@@ -207,8 +212,6 @@ az acr create -n $acr_name -g $rg --sku Basic --admin-enabled true >/dev/null
 echo "  - Resource created"
 echo "  - Starting image build process in 10 seconds to reduce build failures."
 sleep 10 # To give time for the ACR service to be ready for build operations
-
-echo
 echo "  - Building image in ACR...(takes 3-5 minutes per attempt)"
 # Build image with retry logic
 max_retries=3
@@ -227,7 +230,7 @@ while [ $retry_count -lt $max_retries ]; do
     else
         echo "  - Image not found in ACR, retrying build..."
         retry_count=$((retry_count + 1))
-        if [ $retry_count -lt $max_retries ]; then
+    if [ "${retry_count}" -lt "${max_retries}" ]; then
             echo "  - Waiting 5 seconds before retry..."
             sleep 5
         fi
@@ -235,7 +238,7 @@ while [ $retry_count -lt $max_retries ]; do
 done
 
 
-if [ $retry_count -eq $max_retries ]; then
+if [ "${retry_count}" -eq "${max_retries}" ]; then
     echo "ERROR: Failed to build image after $max_retries attempts"
     echo "Please check your Dockerfile and try again manually with:"
     echo "az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile ."
