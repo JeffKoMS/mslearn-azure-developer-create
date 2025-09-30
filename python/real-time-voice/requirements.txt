@@ -10,7 +10,7 @@ async-timeout==5.0.1
     # via aiohttp
 attrs==25.3.0
     # via aiohttp
-azure-ai-voicelive==1.0.0b2
+azure-ai-voicelive==1.0.0b5
     # via real-time-voice (pyproject.toml)
 azure-core==1.35.1
     # via

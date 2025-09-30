@@ -19,7 +19,7 @@ dependencies = [
     "requests==2.32.3",
     "typing_extensions==4.13.2",
     "urllib3==2.4.0",
-    "azure-ai-voicelive==1.0.0b2",
+    "azure-ai-voicelive==1.0.0b5",
     "Flask>=3.0.0,<4.0.0",
 ]
 

@@ -230,7 +230,8 @@ class BasicVoiceAssistant:
             ServerVad,
             AzureStandardVoice,
             Modality,
-            AudioFormat,
+            InputAudioFormat,
+            OutputAudioFormat,
         )  # type: ignore
         
         verbose_val = __import__('os').environ.get('VOICE_LIVE_VERBOSE', '0').strip()
@@ -250,7 +251,7 @@ class BasicVoiceAssistant:
 
                 # Configure voice: use AzureStandardVoice for locale-specific voices, plain string for others
                 if self.voice.startswith("en-") or "-" in self.voice:
-                    voice_cfg: Union[str, AzureStandardVoice] = AzureStandardVoice(name=self.voice, type="azure-standard")
+                    voice_cfg: Union[str, AzureStandardVoice] = AzureStandardVoice(name=self.voice)
                 else:
                     voice_cfg = self.voice
 
@@ -259,8 +260,8 @@ class BasicVoiceAssistant:
                     modalities=[Modality.TEXT, Modality.AUDIO],
                     instructions=self.instructions,
                     voice=voice_cfg,
-                    input_audio_format=AudioFormat.PCM16,
-                    output_audio_format=AudioFormat.PCM16,
+                    input_audio_format=InputAudioFormat.PCM16,
+                    output_audio_format=OutputAudioFormat.PCM16,
                     turn_detection=ServerVad(threshold=0.5, prefix_padding_ms=300, silence_duration_ms=500),
                 )
                 await conn.session.update(session=session_config)
