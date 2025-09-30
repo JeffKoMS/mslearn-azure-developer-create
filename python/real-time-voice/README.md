@@ -23,7 +23,7 @@ The provided `azdeploy.sh` creates the required resources in Azure:
 
 * Change the two variables at the top of the script to match your needs, don't change anything else.
 * The script:
-    * Deploys the *gpt-realtime* model using AZD.
+    * Deploys the *gpt-4o* model using AZD.
     * Creates Azure Container Registry service
     * Uses ACR tasks to build and deploy the Dockerfile image to ACR
     * Creates the App Service Plan

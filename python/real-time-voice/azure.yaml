@@ -8,27 +8,26 @@ name: gpt-realtime-model
 metadata:
   template: azd-init@1.19.0
 
+# Hooks to automatically purge AI Foundry when running azd down
+hooks:
+  postdown:
+    shell: sh
+    run: |
+      foundry_name=$(azd env get-values --output json 2>/dev/null | jq -r '.AZUREAI_FOUNDRY_NAME // empty')
+      resource_group=$(azd env get-values --output json 2>/dev/null | jq -r '.AZURE_RESOURCE_GROUP // empty')
+      if [ -n "$foundry_name" ] && [ -n "$resource_group" ]; then
+        echo "Purging AI Foundry resource: $foundry_name"
+        az cognitiveservices account purge --name "$foundry_name" --resource-group "$resource_group" --location "$(azd env get-values --output json | jq -r '.AZURE_LOCATION')" 2>/dev/null || echo "Failed to purge or resource already purged"
+      fi
+
 # NO SERVICES - This template only provisions infrastructure
 # Students will run the Flask app locally and connect to the deployed OpenAI service
 
-# Student workflow - PROVISION AI RESOURCES ONLY
-# 1. Initialize environment with a descriptive name:
-#    azd env new gpt-realtime-lab  (or your-name-gpt-experiment)
-# 2. Set your resource group (optional):
-#    azd env set AZURE_RESOURCE_GROUP "rg-your-name-gpt"
-# 3. Login to Azure: az login  
-# 4. Provision AI resources: azd provision
-#
-# NOTE: The environment name becomes part of your Azure resource names
-# Choose something descriptive like "gpt-realtime-lab" not just "dev"
-#
 # After provisioning, you'll get:
 # - Azure AI Foundry Project for experimentation
 # - OpenAI service with GPT realtime model deployed
 # - Endpoint and API key for your local Flask app
 #
-# The Flask app runs LOCALLY - not deployed to Azure
-# Students use the endpoint/API key in their local development environment
-#
-# DO NOT run 'azd deploy' - there is no application to deploy
+
+# DO NOT run 'azd deploy' - the application is deployed outside of this process.
 # This template only creates the AI resources students need
