@@ -15,7 +15,7 @@
 
 ## Environment Variables
 
-The  `.env` file is created by the *azdeploy.sh* script. The AI model endpoint and API key are added during the deployment of the resources.
+The  `.env` file is created by the *azdeploy.sh* script. The AI model endpoint, API key, and model name are added during the deployment of the resources.
 
 ## Azure resource deployment
 
@@ -41,6 +41,7 @@ The provided `azdeploy.sh` creates the required resources in Azure:
 You can run the run the project locally and only provision the AI model following these steps:
 
 1. **Initialize environment** (choose a descriptive name):
+
    ```bash
    azd env new gpt-realtime-lab --confirm
    # or: azd env new your-name-gpt-experiment --confirm
@@ -56,6 +57,7 @@ You can run the run the project locally and only provision the AI model followin
    ```
 
 1. **Login and provision AI resources**:
+
    ```bash
    az login
    azd provision
@@ -68,8 +70,8 @@ If you only provisioned the model using the `azd provision` method you MUST crea
 ```
 AZURE_VOICE_LIVE_ENDPOINT=""
 AZURE_VOICE_LIVE_API_KEY=""
-VOICE_LIVE_MODEL="gpt-realtime"
-VOICE_LIVE_VOICE="alloy"
+VOICE_LIVE_MODEL=""
+VOICE_LIVE_VOICE="en-US-JennyNeural"
 VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
 VOICE_LIVE_VERBOSE="" #Suppresses excessive logging to the terminal if running locally
 ```
@@ -78,7 +80,8 @@ Notes:
 
 1. The endpoint is the endpoint for the model and it should only include `https://<proj-name>.cognitiveservices.azure.com`.
 1. The API key is the key for the model.
-1. You can retrieve these values from the portal.
+1. The model is the model name used during deployment.
+1. You can retrieve these values from the AI Foundry portal.
 
 ### Running the project locally
 

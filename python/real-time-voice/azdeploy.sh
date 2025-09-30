@@ -92,7 +92,6 @@ if [ "$deploy_mode" = "2" ]; then
     echo "  - Resources verified: ACR and Web App exist"
     
     # Build image
-    echo ""
     echo "  - Building updated image in ACR...(takes 3-5 minutes)"
     max_retries=3
     retry_count=0
@@ -121,14 +120,13 @@ if [ "$deploy_mode" = "2" ]; then
     fi
     
     # Restart web app to pull new image
-    echo ""
     echo "  - Restarting Web App to pull updated container..."
     az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
     
     echo ""
-    echo "🎉 Container update complete!"
-    echo "🌐 Your app is available at: https://${webapp_name}.azurewebsites.net"
-    echo "⏱️  App may take 1-2 minutes to restart with the new image."
+    echo "Container update complete!"
+    echo " - Your app is available at: https://${webapp_name}.azurewebsites.net"
+    echo " - App may take 1-2 minutes to restart with the new image."
     echo ""
     exit 0
 fi
@@ -334,11 +332,11 @@ sleep 15 #Time for the service to restart and pull image
 
 # Show final URL and cleanup info
 echo
-echo "🎉 Deployment complete!"
+echo "Deployment complete!"
 echo
-echo "✅ AI Foundry with GPT Realtime model: PROVISIONED"
-echo "✅ Flask app deployed to App Service: READY"
-echo "🌐 Your app is available at: https://${webapp_name}.azurewebsites.net"
+echo " - AI Foundry with GPT Realtime model: PROVISIONED"
+echo " - Flask app deployed to App Service: READY"
+echo " - Your app is available at: https://${webapp_name}.azurewebsites.net"
 echo
-echo "⏱️  App may take a few minutes to start after loading the web page."
+echo "Note: App may take a few minutes to start after loading the web page."
 echo
