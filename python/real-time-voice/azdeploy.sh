@@ -10,21 +10,26 @@ location="eastus2" # Or a location near you
 
 # Don't change anything below this line unless you know what you're doing.
 
-# Create the .env file
-cat > .env << 'EOF'
-# Do not change any settings in this file. Endpoint, API key, and model name are set automatically during deployment
-AZURE_VOICE_LIVE_ENDPOINT=""
-AZURE_VOICE_LIVE_API_KEY=""
-VOICE_LIVE_MODEL=""
-VOICE_LIVE_VOICE="en-US-JennyNeural"
-VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
-VOICE_LIVE_VERBOSE="" #Suppresses excessive logging to the terminal if running locally
-EOF
+# ============================================================================
+# Deployment Mode Selection
+# ============================================================================
+echo "Select deployment mode:"
+echo "  1) Full deployment (AI Foundry + Container + App Service) - ~15 minutes"
+echo "  2) Container update only (rebuild and redeploy image) - ~5 minutes"
+echo ""
+read -p "Enter choice (1 or 2): " deploy_mode
 
+if [ "$deploy_mode" != "1" ] && [ "$deploy_mode" != "2" ]; then
+    echo "ERROR: Invalid choice. Please enter 1 or 2."
+    exit 1
+fi
+
+# ============================================================================
+# Service Name Generation (shared by both modes)
+# ============================================================================
 # Use the current console username plus a short 4-char deterministic hash to set service names.
 user_name="$(whoami 2>/dev/null || echo user)"
 
-# Sanitize username: lowercase and remove hyphens (strip '-' from the username)
 # Sanitize username: lowercase and remove non-alphanumeric characters
 full_safe_user=$(printf "%s" "$user_name" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 if [ -z "$full_safe_user" ]; then
@@ -55,10 +60,91 @@ appsvc_plan="${safe_user}-appplan-${short_hash}"
 webapp_name="${safe_user}-webapp-${short_hash}"
 image="rt-voice"
 tag="v1"
-azd_env_name="gpt-realtime" # Unique AZD environment name
+azd_env_name="gpt-realtime" # Forced as unique at each run
+
+# ============================================================================
+# Mode 2: Container Update Only
+# ============================================================================
+if [ "$deploy_mode" = "2" ]; then
+    clear
+    echo "Starting container update (rebuild + redeploy)..."
+    echo ""
+    
+    # Verify that the resources exist
+    echo "  - Verifying existing resources..."
+    if ! az acr show -n $acr_name -g $rg >/dev/null 2>&1; then
+        echo "ERROR: ACR '$acr_name' not found in resource group '$rg'"
+        echo "You must run a full deployment (option 1) first."
+        exit 1
+    fi
+    
+    if ! az webapp show -n $webapp_name -g $rg >/dev/null 2>&1; then
+        echo "ERROR: Web App '$webapp_name' not found in resource group '$rg'"
+        echo "You must run a full deployment (option 1) first."
+        exit 1
+    fi
+    
+    echo "  - Resources verified: ACR and Web App exist"
+    
+    # Build image
+    echo ""
+    echo "  - Building updated image in ACR...(takes 3-5 minutes)"
+    max_retries=3
+    retry_count=0
+
+    while [ $retry_count -lt $max_retries ]; do
+        echo "  - Attempt $((retry_count + 1)) of $max_retries: building image..."
+        
+        az acr build -r $acr_name --image ${acr_name}.azurecr.io/${image}:${tag} --file Dockerfile . >/dev/null 2>&1
+
+        if az acr repository show --name $acr_name --repository $image >/dev/null 2>&1; then
+            echo "  - Image successfully built and verified in ACR"
+            break
+        else
+            echo "  - Image not found in ACR, retrying build..."
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+                echo "  - Waiting 5 seconds before retry..."
+                sleep 5
+            fi
+        fi
+    done
+
+    if [ $retry_count -eq $max_retries ]; then
+        echo "ERROR: Failed to build image after $max_retries attempts"
+        exit 1
+    fi
+    
+    # Restart web app to pull new image
+    echo ""
+    echo "  - Restarting Web App to pull updated container..."
+    az webapp restart --name "$webapp_name" --resource-group "$rg" >/dev/null
+    
+    echo ""
+    echo "🎉 Container update complete!"
+    echo "🌐 Your app is available at: https://${webapp_name}.azurewebsites.net"
+    echo "⏱️  App may take 1-2 minutes to restart with the new image."
+    echo ""
+    exit 0
+fi
+
+# ============================================================================
+# Mode 1: Full Deployment (original script flow)
+# ============================================================================
+
+# Create the .env file
+cat > .env << 'EOF'
+# Do not change any settings in this file. Endpoint, API key, and model name are set automatically during deployment
+AZURE_VOICE_LIVE_ENDPOINT=""
+AZURE_VOICE_LIVE_API_KEY=""
+VOICE_LIVE_MODEL=""
+VOICE_LIVE_VOICE="en-US-JennyNeural"
+VOICE_LIVE_INSTRUCTIONS="You are a helpful AI assistant with a focus on world history. Respond naturally and conversationally. Keep your responses concise but engaging."
+VOICE_LIVE_VERBOSE="" #Suppresses excessive logging to the terminal if running locally
+EOF
 
 clear
-echo "Starting deployment with AZD provisioning + App Service, takes about 15 minutes..."
+echo "Starting FULL deployment with AZD provisioning + App Service, takes about 15 minutes..."
 
 # Step 1: Provision AI Foundry with GPT Realtime model using AZD
 echo
