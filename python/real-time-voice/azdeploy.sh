@@ -303,6 +303,11 @@ az webapp create --resource-group $rg \
     --name $webapp_name \
     --runtime "PYTHON:3.10" >/dev/null
 
+echo "  - Applying environment variables to web app..."
+az webapp config appsettings set --resource-group "$rg" \
+    --name "$webapp_name" \
+    --settings "${env_vars[@]}" >/dev/null
+
 echo "  - Configuring Web App container settings to pull from ACR..."
 az webapp config container set \
     --name "$webapp_name" \
@@ -317,11 +322,6 @@ az webapp config set --resource-group "$rg" \
     --name "$webapp_name" \
     --startup-file "" \
     --always-on true >/dev/null
-
-echo "  - Applying environment variables to web app..."
-az webapp config appsettings set --resource-group "$rg" \
-    --name "$webapp_name" \
-    --settings "${env_vars[@]}" >/dev/null
 
 # Start / Restart to ensure container is pulled
 sleep 10
