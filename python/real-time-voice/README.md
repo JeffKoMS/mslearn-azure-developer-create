@@ -32,7 +32,9 @@ The provided `azdeploy.sh` creates the required resources in Azure:
     * Configures the web app environment variables
     * The script will provide the App Service endpoint
 
-> Note: You can run the script in PowerShell using the `bash azdeploy.sh` command, this command also let's you run the script in Bash without having to make it an executable.
+The script provides two deployment options: 1. Full deployment; and 2. Redeploy the image only. Option 2 is only for post-deployment when you want to experiment with changes in the application. 
+
+> Note: You can run the script in PowerShell, or Bash, using the `bash azdeploy.sh` command, this command also let's you run the script in Bash without having to make it an executable.
 
 ## Local development
 
