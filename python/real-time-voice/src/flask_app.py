@@ -202,7 +202,6 @@ class BasicVoiceAssistant:
 
     # BEGIN VOICELIVE ASSISTANT IMPLEMENTATION
 
-    # Initialize VoiceLive assistant with Azure service configuration.
     def __init__(
         self,
         endpoint: str,
@@ -212,18 +211,21 @@ class BasicVoiceAssistant:
         instructions: str,
         state_callback=None,
     ):
+        # Store Azure VoiceLive connection and configuration parameters
         self.endpoint = endpoint
         self.credential = credential
         self.model = model
         self.voice = voice
         self.instructions = instructions
+        
+        # Initialize runtime state - connection established in start()
         self.connection = None
-        self._response_cancelled = False # When True, server will suppress broadcasting response events
-        self._stopping = False
+        self._response_cancelled = False  # Used to handle user interruptions
+        self._stopping = False  # Signals graceful shutdown
         self.state_callback = state_callback or (lambda *_: None)
 
     async def start(self):
-        # Import VoiceLive SDK components for async connection and models
+        # Import VoiceLive SDK components needed for establishing connection and configuring session
         from azure.ai.voicelive.aio import connect  # type: ignore
         from azure.ai.voicelive.models import (
             RequestSession,
@@ -333,10 +335,10 @@ class BasicVoiceAssistant:
         self.state_callback("listening", "Listening… speak now")
         
         try:
-            # Always stop client audio playback when user speaks
+            # Stop any ongoing audio playback on the client side
             _broadcast({"type": "control", "action": "stop_playback"})
             
-            # Cancel VoiceLive response if assistant is actively responding (enables interruption)
+            # If assistant is currently speaking or processing, cancel the response to allow interruption
             current_state = assistant_state.get("state")
             if current_state in {"assistant_speaking", "processing"}:
                 self._response_cancelled = True
@@ -355,7 +357,6 @@ class BasicVoiceAssistant:
         self.state_callback("processing", "Processing your input…")
 
     # END HANDLE SESSION EVENTS
-
 
     async def _handle_audio_delta(self, event):
         """Stream assistant audio to clients."""
