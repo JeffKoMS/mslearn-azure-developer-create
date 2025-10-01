@@ -165,8 +165,11 @@ azd env set AZURE_RESOURCE_GROUP $rg >/dev/null
 echo "  - AZD environment '$azd_env_name' created (fresh state)"
 
 echo "  - Provisioning AI resources (forcing new deployment)..."
-# Ensure azd is authenticated (use existing Azure CLI auth)
-azd auth login 2>/dev/null || true
+# Verify azd authentication (inherits from Azure CLI in Cloud Shell)
+if ! azd auth login --check-status >/dev/null 2>&1; then
+    echo "  - Authenticating azd with Azure..."
+    azd auth login 2>/dev/null || true
+fi
 
 # Force a completely fresh deployment by combining multiple techniques
 azd config set alpha.infrastructure.deployment.name "azd-gpt-realtime-$(date +%s)"
