@@ -16,6 +16,7 @@ if (string.IsNullOrEmpty(cosmosDbAccountUrl) || string.IsNullOrEmpty(accountKey)
     return;
 }
 
+
 // CREATE THE COSMOS DB CLIENT USING THE ACCOUNT URL AND KEY
 CosmosClient client = new(
     accountEndpoint: cosmosDbAccountUrl,
